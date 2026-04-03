@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Universal Bets — Play & Win</title>
+<link rel="stylesheet" href="css/style.css"/>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<!-- ── AUTH MODAL ────────────────────────────────────────────────────────── -->
+<div id="auth-overlay" class="modal-overlay">
+  <div class="auth-modal">
+    <div class="auth-logo">
+      <svg viewBox="0 0 32 32" fill="none" width="36" height="36">
+        <circle cx="16" cy="16" r="15" fill="#00e701" fill-opacity=".12" stroke="#00e701" stroke-width="1.5"/>
+        <path d="M10 22 L16 8 L22 22" stroke="#00e701" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 18 h8" stroke="#00e701" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span style="font-family:'Nunito',sans-serif;font-size:1.3rem;font-weight:800">Universal<em style="color:var(--accent)">Bets</em></span>
+    </div>
+    <h2 id="auth-title">Welcome back</h2>
+    <p id="auth-sub">Sign in to your account</p>
+    <div class="auth-form">
+      <input type="hidden" id="auth-mode" value="login"/>
+      <div id="auth-name-wrap" style="display:none">
+        <input class="auth-input" id="auth-name" type="text" placeholder="Username"/>
+      </div>
+      <input class="auth-input" id="auth-email"    type="email"    placeholder="Email address"/>
+      <input class="auth-input" id="auth-password" type="password" placeholder="Password"/>
+      <div id="auth-error" class="auth-error"></div>
+      <button class="auth-submit" id="auth-submit" onclick="handleAuthSubmit()">Sign In</button>
+      <div class="auth-switch" id="auth-switch">
+        No account? <a onclick="setAuthMode('register')">Register</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST CONTAINER ───────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── NAV ──────────────────────────────────────────────────────────────── -->
+<nav id="nav">
+  <div class="nav-logo">
+    <svg viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="15" fill="#00e701" fill-opacity=".12" stroke="#00e701" stroke-width="1.5"/>
+      <path d="M10 22 L16 8 L22 22" stroke="#00e701" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 18 h8" stroke="#00e701" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span>Universal<em>Bets</em></span>
+  </div>
+
+  <div class="nav-center">
+    <button class="nav-tab active" data-page="lobby"   onclick="navigate('lobby')">🎮 Casino</button>
+    <button class="nav-tab"        data-page="vip"     onclick="navigate('vip')">👑 VIP</button>
+    <button class="nav-tab"        data-page="deposit" onclick="navigate('deposit')">💳 Cashier</button>
+  </div>
+
+  <div class="nav-right" id="nav-right">
+    <!-- Balance -->
+    <div class="balance-pill" id="balance-display" style="display:none">
+      <span class="bal-icon">$</span>
+      <span class="bal-amount" id="bal-amount">0.00</span>
+    </div>
+
+    <!-- Auth Buttons -->
+    <div id="nav-auth-btns" style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="showAuth('login')">Sign In</button>
+      <button class="btn btn-green" onclick="showAuth('register')">Register</button>
+    </div>
+
+    <!-- User Area -->
+    <div id="nav-user-area" style="display:none;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="navigate('profile')">
+        <div id="nav-avatar" style="width:32px;height:32px;border-radius:50%;background:var(--bg4);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700">?</div>
+        <span id="nav-user" style="font-size:.83rem;font-weight:600;color:var(--text2)"></span>
+      </div>
+      <button class="btn btn-ghost" onclick="signOut()" style="padding:6px 12px;font-size:.78rem">Sign Out</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ── LAYOUT ────────────────────────────────────────────────────────────── -->
+<div id="layout">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sidebar-section">Casino</div>
+
+    <button class="sidebar-link active" data-page="lobby" onclick="navigate('lobby')">
+      <span class="icon">🎰</span> Lobby
+    </button>
+    <button class="sidebar-link" data-page="dice" onclick="navigate('dice')">
+      <span class="icon">🎲</span> Dice
+    </button>
+    <button class="sidebar-link" data-page="crash" onclick="navigate('crash')">
+      <span class="icon">📈</span> Crash
+      <span class="badge">HOT</span>
+    </button>
+    <button class="sidebar-link" data-page="mines" onclick="navigate('mines')">
+      <span class="icon">💣</span> Mines
+    </button>
+    <button class="sidebar-link" data-page="plinko" onclick="navigate('plinko')">
+      <span class="icon">🎯</span> Plinko
+    </button>
+    <button class="sidebar-link" data-page="limbo" onclick="navigate('limbo')">
+      <span class="icon">🚀</span> Limbo
+    </button>
+    <button class="sidebar-link" data-page="chicken" onclick="navigate('chicken')">
+      <span class="icon">🐔</span> Chicken Jump
+    </button>
+
+    <div class="divider"></div>
+    <div class="sidebar-section">Account</div>
+
+    <button class="sidebar-link" data-page="profile" onclick="navigate('profile')">
+      <span class="icon">👤</span> Profile
+    </button>
+    <button class="sidebar-link" data-page="deposit" onclick="navigate('deposit')">
+      <span class="icon">💳</span> Cashier
+    </button>
+    <button class="sidebar-link" data-page="vip" onclick="navigate('vip')">
+      <span class="icon">👑</span> VIP Club
+    </button>
+
+    <div class="divider"></div>
+    <div style="padding:14px 16px">
+      <div style="font-size:.72rem;color:var(--text3);line-height:1.6">
+        🔒 Provably Fair<br/>
+        🛡️ Responsible Gaming<br/>
+        18+ Only
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main id="main">
+
+    <!-- ═══ LOBBY ══════════════════════════════════════════════════════════ -->
+    <div id="page-lobby" class="page active">
+
+      <!-- Promo Banner -->
+      <div class="promo-banner">
+        <div style="font-size:2.5rem">🎁</div>
+        <div class="promo-text">
+          <h3>Welcome Bonus — $50 Free to Start</h3>
+          <p>New accounts receive $50 virtual credits. No deposit required. Play all games instantly.</p>
+        </div>
+        <button class="btn btn-green" onclick="showAuth('register')" style="flex-shrink:0;padding:10px 22px">Claim Now</button>
+      </div>
+
+      <!-- Stats Strip -->
+      <div class="stats-strip">
+        <div class="stat-card">
+          <div class="stat-label">Total Bets</div>
+          <div class="stat-val" id="stat-total-bets">0</div>
+          <div class="stat-sub stat-up">↑ 3.2% today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Won</div>
+          <div class="stat-val" id="stat-total-won">$0</div>
+          <div class="stat-sub stat-up">↑ $12,400 today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Players Online</div>
+          <div class="stat-val" id="stat-players">0</div>
+          <div class="stat-sub">Active right now</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Max Win</div>
+          <div class="stat-val" id="stat-jackpot">$0</div>
+          <div class="stat-sub stat-up">Record jackpot</div>
+        </div>
+      </div>
+
+      <!-- Games Grid -->
+      <div class="section-title">Featured Games</div>
+      <div class="game-grid">
+        <div class="game-card" onclick="navigate('dice')">
+          <div class="gc-art" style="background:linear-gradient(135deg,#0d1f3c,#1a3a5c)">
+            🎲
+            <div class="gc-overlay"><span class="gc-play-btn">Play Now</span></div>
+          </div>
+          <div class="gc-info">
+            <div class="gc-name">Dice</div>
+            <div class="gc-edge">1% House Edge</div>
+          </div>
+        </div>
+
+        <div class="game-card" onclick="navigate('crash')">
+          <div class="gc-badge">HOT</div>
+          <div class="gc-art" style="background:linear-gradient(135deg,#0d1f0d,#1a3a1a)">
+            📈
+            <div class="gc-overlay"><span class="gc-play-btn">Play Now</span></div>
+          </div>
+          <div class="gc-info">
+            <div class="gc-name">Crash</div>
+            <div class="gc-edge">3% House Edge</div>
+          </div>
+        </div>
+
+        <div class="game-card" onclick="navigate('mines')">
+          <div class="gc-art" style="background:linear-gradient(135deg,#1f0d0d,#3a1a1a)">
+            💣
+            <div class="gc-overlay"><span class="gc-play-btn">Play Now</span></div>
+          </div>
+          <div class="gc-info">
+            <div class="gc-name">Mines</div>
+            <div class="gc-edge">2% House Edge</div>
+          </div>
+        </div>
+
+        <div class="game-card" onclick="navigate('plinko')">
+          <div class="gc-art" style="background:linear-gradient(135deg,#1a1a0d,#3a3a1a)">
+            🎯
+            <div class="gc-overlay"><span class="gc-play-btn">Play Now</span></div>
+          </div>
+          <div class="gc-info">
+            <div class="gc-name">Plinko</div>
+            <div class="gc-edge">Varies</div>
+          </div>
+        </div>
+
+        <div class="game-card" onclick="navigate('limbo')">
+          <div class="gc-art" style="background:linear-gradient(135deg,#0d0d1f,#1a1a3a)">
+            🚀
+            <div class="gc-overlay"><span class="gc-play-btn">Play Now</span></div>
+          </div>
+          <div class="gc-info">
+            <div class="gc-name">Limbo</div>
+            <div class="gc-edge">1% House Edge</div>
+          </div>
+        </div>
+
+        <div class="game-card" onclick="navigate('chicken')">
+          <div class="gc-art" style="background:linear-gradient(135deg,#1a0d0d,#2d1a0a)">
+            🐔
+            <div class="gc-overlay"><span class="gc-play-btn">Play Now</span></div>
+          </div>
+          <div class="gc-info">
+            <div class="gc-name">Chicken Jump</div>
+            <div class="gc-edge">2% House Edge</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Bets -->
+      <div class="section-title">Live Bets</div>
+      <div class="card">
+        <div style="overflow-x:auto">
+          <table class="live-table">
+            <thead>
+              <tr>
+                <th>Player</th><th>Game</th><th>Bet</th><th>Multiplier</th><th>Profit</th>
+              </tr>
+            </thead>
+            <tbody id="live-bets-body">
+              <tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">No bets yet — be the first!</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /lobby -->
+
+    <!-- ═══ DICE ════════════════════════════════════════════════════════════ -->
+    <div id="page-dice" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('lobby')">← Back</button>
+        <h1>🎲 Dice</h1>
+        <span style="font-size:.78rem;color:var(--text3);margin-left:auto">Provably Fair · 1% Edge</span>
+      </div>
+
+      <div class="game-layout">
+        <!-- Bet Panel -->
+        <div class="bet-panel">
+          <div class="form-group">
+            <label class="form-label">Bet Amount</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="dice-bet" class="with-prefix" value="1.00" min="0.01" step="0.01"/>
+              <div class="input-suffix-btns">
+                <button onclick="halfBet('dice-bet')">½</button>
+                <button onclick="doubleBet('dice-bet')">2×</button>
+                <button onclick="maxBet('dice-bet')">Max</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-bets">
+            <div class="quick-bet" onclick="document.getElementById('dice-bet').value='1.00'">$1</div>
+            <div class="quick-bet" onclick="document.getElementById('dice-bet').value='5.00'">$5</div>
+            <div class="quick-bet" onclick="document.getElementById('dice-bet').value='10.00'">$10</div>
+            <div class="quick-bet" onclick="document.getElementById('dice-bet').value='25.00'">$25</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="form-group">
+            <label class="form-label">Win Chance: <span id="dice-chance">50.0%</span></label>
+            <input type="range" id="dice-slider" class="green-track" min="1" max="95" value="50" step="0.1"/>
+          </div>
+
+          <div class="divider"></div>
+
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;font-size:.8rem">
+              <span style="color:var(--text3)">Multiplier</span>
+              <span id="dice-mult" style="font-weight:700;color:var(--accent)">1.9800×</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.8rem">
+              <span style="color:var(--text3)">House Edge</span>
+              <span id="dice-edge" style="font-weight:600">1.00%</span>
+            </div>
+          </div>
+
+          <button class="bet-btn green" id="dice-btn" onclick="rollDice()">Roll Dice</button>
+        </div>
+
+        <!-- Display -->
+        <div class="game-display">
+          <div class="game-canvas-area dice-display">
+            <div class="result-overlay" id="dice-result-overlay">
+              <div class="result-badge"></div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;align-items:center;gap:24px;width:100%">
+              <div id="dice-result" class="dice-result-big" style="color:var(--text3)">—</div>
+
+              <div class="dice-slider-wrap">
+                <div class="slider-labels">
+                  <span>0</span><span>Roll Under to Win</span><span>100</span>
+                </div>
+              </div>
+
+              <div class="dice-stats">
+                <div class="dice-stat">
+                  <span class="ds-label">Win Chance</span>
+                  <span class="ds-val" style="color:var(--accent)" id="dice-chance2">50%</span>
+                </div>
+                <div class="dice-stat">
+                  <span class="ds-label">Multiplier</span>
+                  <span class="ds-val" id="dice-mult2">1.98×</span>
+                </div>
+                <div class="dice-stat">
+                  <span class="ds-label">Profit on Win</span>
+                  <span class="ds-val" id="dice-profit">$0.98</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-row" id="dice-history">
+            <span style="font-size:.72rem;color:var(--text3);flex-shrink:0">History:</span>
+          </div>
+        </div>
+      </div>
+    </div><!-- /dice -->
+
+    <!-- ═══ CRASH ═══════════════════════════════════════════════════════════ -->
+    <div id="page-crash" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('lobby')">← Back</button>
+        <h1>📈 Crash</h1>
+        <span style="font-size:.78rem;color:var(--text3);margin-left:auto">Provably Fair · 3% Edge</span>
+      </div>
+
+      <div class="game-layout">
+        <div class="bet-panel">
+          <div class="form-group">
+            <label class="form-label">Bet Amount</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="crash-bet" class="with-prefix" value="1.00" min="0.01" step="0.01"/>
+              <div class="input-suffix-btns">
+                <button onclick="halfBet('crash-bet')">½</button>
+                <button onclick="doubleBet('crash-bet')">2×</button>
+                <button onclick="maxBet('crash-bet')">Max</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-bets">
+            <div class="quick-bet" onclick="document.getElementById('crash-bet').value='1.00'">$1</div>
+            <div class="quick-bet" onclick="document.getElementById('crash-bet').value='5.00'">$5</div>
+            <div class="quick-bet" onclick="document.getElementById('crash-bet').value='10.00'">$10</div>
+            <div class="quick-bet" onclick="document.getElementById('crash-bet').value='50.00'">$50</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="form-group">
+            <label class="form-label">Auto Cash Out (optional)</label>
+            <div class="input-wrap">
+              <input type="number" id="crash-auto" placeholder="e.g. 2.00" min="1.01" step="0.01"/>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div style="font-size:.78rem;color:var(--text3);line-height:1.7">
+            The multiplier grows until it crashes. Cash out before the crash to win!
+          </div>
+
+          <button class="bet-btn green" id="crash-btn" onclick="startCrash()">Start Game</button>
+        </div>
+
+        <div class="game-display">
+          <div class="game-canvas-area" style="position:relative;padding:0">
+            <canvas id="crash-canvas" style="width:100%;height:100%;min-height:360px"></canvas>
+            <div class="crash-multiplier" id="crash-mult-display">
+              1.00×
+              <small id="crash-small-text">Place your bet</small>
+            </div>
+          </div>
+          <div class="history-row" id="crash-history">
+            <span style="font-size:.72rem;color:var(--text3);flex-shrink:0">History:</span>
+          </div>
+        </div>
+      </div>
+    </div><!-- /crash -->
+
+    <!-- ═══ MINES ════════════════════════════════════════════════════════════ -->
+    <div id="page-mines" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('lobby')">← Back</button>
+        <h1>💣 Mines</h1>
+        <span style="font-size:.78rem;color:var(--text3);margin-left:auto">Provably Fair · 2% Edge</span>
+      </div>
+
+      <div class="game-layout">
+        <div class="bet-panel">
+          <div class="form-group">
+            <label class="form-label">Bet Amount</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="mines-bet" class="with-prefix" value="1.00" min="0.01" step="0.01"/>
+              <div class="input-suffix-btns">
+                <button onclick="halfBet('mines-bet')">½</button>
+                <button onclick="doubleBet('mines-bet')">2×</button>
+                <button onclick="maxBet('mines-bet')">Max</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-bets">
+            <div class="quick-bet" onclick="document.getElementById('mines-bet').value='1.00'">$1</div>
+            <div class="quick-bet" onclick="document.getElementById('mines-bet').value='5.00'">$5</div>
+            <div class="quick-bet" onclick="document.getElementById('mines-bet').value='10.00'">$10</div>
+            <div class="quick-bet" onclick="document.getElementById('mines-bet').value='25.00'">$25</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="form-group">
+            <label class="form-label">Mines Count</label>
+            <div class="input-wrap">
+              <input type="number" id="mines-count" value="3" min="1" max="24" step="1"/>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="multiplier-display">
+            <div class="mult-label">Current Multiplier</div>
+            <div class="mult-val" id="mines-mult">1.00×</div>
+          </div>
+
+          <button class="bet-btn green" id="mines-start-btn" onclick="startMines()">Start Game</button>
+          <button class="bet-btn" id="mines-cashout-btn" onclick="cashoutMines()"
+            style="display:none;background:var(--gold);color:#000">
+            💰 Cash Out
+          </button>
+        </div>
+
+        <div class="game-display">
+          <div class="game-canvas-area" style="flex-direction:column">
+            <div id="mines-grid" class="mines-grid"></div>
+            <div style="font-size:.75rem;color:var(--text3);margin-top:8px">Click tiles to reveal gems or mines</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /mines -->
+
+    <!-- ═══ PLINKO ═══════════════════════════════════════════════════════════ -->
+    <div id="page-plinko" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('lobby')">← Back</button>
+        <h1>🎯 Plinko</h1>
+        <span style="font-size:.78rem;color:var(--text3);margin-left:auto">Provably Fair</span>
+      </div>
+
+      <div class="game-layout">
+        <div class="bet-panel">
+          <div class="form-group">
+            <label class="form-label">Bet Amount</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="plinko-bet" class="with-prefix" value="1.00" min="0.01" step="0.01"/>
+              <div class="input-suffix-btns">
+                <button onclick="halfBet('plinko-bet')">½</button>
+                <button onclick="doubleBet('plinko-bet')">2×</button>
+                <button onclick="maxBet('plinko-bet')">Max</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-bets">
+            <div class="quick-bet" onclick="document.getElementById('plinko-bet').value='1.00'">$1</div>
+            <div class="quick-bet" onclick="document.getElementById('plinko-bet').value='5.00'">$5</div>
+            <div class="quick-bet" onclick="document.getElementById('plinko-bet').value='10.00'">$10</div>
+            <div class="quick-bet" onclick="document.getElementById('plinko-bet').value='25.00'">$25</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div style="font-size:.78rem;color:var(--text3);line-height:1.8">
+            <div style="margin-bottom:6px;font-weight:600;color:var(--text2)">Multiplier Buckets</div>
+            <div>🟢 <strong style="color:var(--accent)">5×</strong> — Center hit</div>
+            <div>🟡 <strong style="color:var(--gold)">3×</strong> — Near center</div>
+            <div>⚪ <strong>1×</strong> — Middle</div>
+            <div>🔴 <strong style="color:var(--red)">0.3×</strong> — Edges</div>
+          </div>
+
+          <button class="bet-btn green" id="plinko-btn" onclick="dropPlinko()">Drop Ball</button>
+        </div>
+
+        <div class="game-display">
+          <div class="game-canvas-area" style="padding:0">
+            <canvas id="plinko-canvas" style="width:100%;height:100%;min-height:380px"></canvas>
+          </div>
+          <div class="history-row" id="plinko-history">
+            <span style="font-size:.72rem;color:var(--text3);flex-shrink:0">History:</span>
+          </div>
+        </div>
+      </div>
+    </div><!-- /plinko -->
+
+    <!-- ═══ LIMBO ═════════════════════════════════════════════════════════════ -->
+    <div id="page-limbo" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('lobby')">← Back</button>
+        <h1>🚀 Limbo</h1>
+        <span style="font-size:.78rem;color:var(--text3);margin-left:auto">Provably Fair · 1% Edge</span>
+      </div>
+
+      <div class="game-layout">
+        <div class="bet-panel">
+          <div class="form-group">
+            <label class="form-label">Bet Amount</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="limbo-bet" class="with-prefix" value="1.00" min="0.01" step="0.01"/>
+              <div class="input-suffix-btns">
+                <button onclick="halfBet('limbo-bet')">½</button>
+                <button onclick="doubleBet('limbo-bet')">2×</button>
+                <button onclick="maxBet('limbo-bet')">Max</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-bets">
+            <div class="quick-bet" onclick="document.getElementById('limbo-bet').value='1.00'">$1</div>
+            <div class="quick-bet" onclick="document.getElementById('limbo-bet').value='5.00'">$5</div>
+            <div class="quick-bet" onclick="document.getElementById('limbo-bet').value='10.00'">$10</div>
+            <div class="quick-bet" onclick="document.getElementById('limbo-bet').value='25.00'">$25</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="form-group">
+            <label class="form-label">Target Multiplier</label>
+            <div class="input-wrap">
+              <input type="number" id="limbo-target" value="2.00" min="1.01" step="0.01"/>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;font-size:.8rem">
+              <span style="color:var(--text3)">Win Chance</span>
+              <span style="font-weight:700;color:var(--accent)">~50%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.8rem">
+              <span style="color:var(--text3)">House Edge</span>
+              <span style="font-weight:600">1.00%</span>
+            </div>
+          </div>
+
+          <button class="bet-btn green" id="limbo-btn" onclick="rollLimbo()">Launch</button>
+        </div>
+
+        <div class="game-display">
+          <div class="game-canvas-area">
+            <div style="text-align:center">
+              <div id="limbo-result" class="limbo-result idle">—×</div>
+              <div style="margin-top:12px;font-size:.8rem;color:var(--text3)">Roll above your target to win</div>
+            </div>
+          </div>
+          <div class="history-row" id="limbo-history">
+            <span style="font-size:.72rem;color:var(--text3);flex-shrink:0">History:</span>
+          </div>
+        </div>
+      </div>
+    </div><!-- /limbo -->
+
+    <!-- ═══ CHICKEN JUMP ══════════════════════════════════════════════════════ -->
+    <div id="page-chicken" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('lobby')">← Back</button>
+        <h1>🐔 Chicken Jump</h1>
+        <span style="font-size:.78rem;color:var(--text3);margin-left:auto">2% House Edge · 1.18× per row</span>
+      </div>
+
+      <div class="game-layout">
+        <div class="bet-panel">
+          <div class="form-group">
+            <label class="form-label">Bet Amount</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="chicken-bet" class="with-prefix" value="1.00" min="0.01" step="0.01"/>
+              <div class="input-suffix-btns">
+                <button onclick="halfBet('chicken-bet')">½</button>
+                <button onclick="doubleBet('chicken-bet')">2×</button>
+                <button onclick="maxBet('chicken-bet')">Max</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-bets">
+            <div class="quick-bet" onclick="document.getElementById('chicken-bet').value='1.00'">$1</div>
+            <div class="quick-bet" onclick="document.getElementById('chicken-bet').value='5.00'">$5</div>
+            <div class="quick-bet" onclick="document.getElementById('chicken-bet').value='10.00'">$10</div>
+            <div class="quick-bet" onclick="document.getElementById('chicken-bet').value='25.00'">$25</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="multiplier-display">
+            <div class="mult-label">Current Multiplier</div>
+            <div class="mult-val" id="chicken-mult">1.00×</div>
+          </div>
+
+          <div style="font-size:.78rem;color:var(--text3);line-height:1.7;margin-top:4px">
+            Help the chicken jump across platforms! Each safe jump multiplies your bet by <strong style="color:var(--accent)">1.18×</strong>.
+            One platform per row is dangerous — don't pick it!
+          </div>
+
+          <button class="bet-btn green" id="chicken-start-btn" onclick="startChicken()">Start Game</button>
+          <button class="bet-btn" id="chicken-cashout-btn" onclick="cashoutChicken()"
+            style="display:none;background:var(--gold);color:#000">
+            🐔 Cash Out
+          </button>
+        </div>
+
+        <div class="game-display">
+          <div class="game-canvas-area" style="padding:0;position:relative">
+            <div id="chicken-stage" class="chicken-stage"></div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /chicken -->
+
+    <!-- ═══ PROFILE ════════════════════════════════════════════════════════════ -->
+    <div id="page-profile" class="page">
+      <div class="page-header">
+        <h1>👤 Profile</h1>
+      </div>
+
+      <div class="profile-header">
+        <div class="avatar" id="profile-avatar">?</div>
+        <div class="profile-info">
+          <h2 id="profile-username">Guest</h2>
+          <p>Member since today</p>
+        </div>
+        <div class="profile-badge">🥉 Bronze Member</div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header" style="margin-bottom:16px">Bet History</div>
+        <div style="overflow-x:auto;padding:0 4px 16px">
+          <table class="bet-history-table">
+            <thead>
+              <tr><th>Date</th><th>Game</th><th>Bet</th><th>Mult</th><th>P&L</th></tr>
+            </thead>
+            <tbody id="history-tbody">
+              <tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">No bets yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /profile -->
+
+    <!-- ═══ DEPOSIT ════════════════════════════════════════════════════════════ -->
+    <div id="page-deposit" class="page">
+      <div class="page-header">
+        <h1>💳 Cashier</h1>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px">
+        <div class="card" style="padding:24px">
+          <div style="font-size:1rem;font-weight:700;margin-bottom:16px">💰 Virtual Currency</div>
+          <p style="color:var(--text2);font-size:.84rem;line-height:1.6;margin-bottom:16px">
+            This is a <strong>virtual casino</strong> using play money. Your starting balance is $50.
+            You can reset your balance at any time below.
+          </p>
+          <div style="background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:16px;margin-bottom:16px">
+            <div style="font-size:.72rem;color:var(--text3);text-transform:uppercase;font-weight:600;margin-bottom:6px">Your Balance</div>
+            <div style="font-family:'Nunito',sans-serif;font-size:2rem;font-weight:800;color:var(--accent)" id="deposit-balance">$0.00</div>
+          </div>
+          <button class="btn btn-green" style="width:100%;padding:12px" onclick="resetBalance()">
+            🔄 Reset Balance to $50
+          </button>
+        </div>
+
+        <div class="card" style="padding:24px">
+          <div style="font-size:1rem;font-weight:700;margin-bottom:16px">🎁 Bonuses</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:14px">
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:4px">Daily Bonus</div>
+              <div style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Claim $10 every 24 hours</div>
+              <button class="btn btn-green" style="width:100%;padding:9px;font-size:.82rem" onclick="claimDaily()">Claim $10</button>
+            </div>
+            <div style="background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:14px">
+              <div style="font-weight:700;font-size:.85rem;margin-bottom:4px">Weekly Bonus</div>
+              <div style="font-size:.78rem;color:var(--text3);margin-bottom:10px">Claim $50 every 7 days</div>
+              <button class="btn btn-ghost" style="width:100%;padding:9px;font-size:.82rem" onclick="claimWeekly()">Claim $50</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /deposit -->
+
+    <!-- ═══ VIP ════════════════════════════════════════════════════════════════ -->
+    <div id="page-vip" class="page">
+      <div class="page-header">
+        <h1>👑 VIP Club</h1>
+      </div>
+
+      <div class="promo-banner" style="margin-bottom:24px">
+        <div style="font-size:2.5rem">👑</div>
+        <div class="promo-text">
+          <h3>Unlock Exclusive VIP Rewards</h3>
+          <p>Earn points with every bet and climb the ranks to unlock cashback, bonuses, and more.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="margin-bottom:16px">VIP Levels</div>
+        <div style="overflow-x:auto;padding:0 4px 16px">
+          <table class="vip-table">
+            <thead>
+              <tr><th>Level</th><th>Min. Bets</th><th>Cashback</th><th>Bonus</th><th>Perks</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="vip-level-badge">🥉 Bronze</span></td>
+                <td>$0</td><td>0.5%</td><td>$10/week</td><td>Chat access</td>
+              </tr>
+              <tr>
+                <td><span class="vip-level-badge">🥈 Silver</span></td>
+                <td>$500</td><td>1.0%</td><td>$25/week</td><td>Priority support</td>
+              </tr>
+              <tr>
+                <td><span class="vip-level-badge">🥇 Gold</span></td>
+                <td>$2,000</td><td>1.5%</td><td>$100/week</td><td>Higher limits</td>
+              </tr>
+              <tr>
+                <td><span class="vip-level-badge">💎 Diamond</span></td>
+                <td>$10,000</td><td>2.5%</td><td>$500/week</td><td>Personal manager</td>
+              </tr>
+              <tr>
+                <td><span class="vip-level-badge">🌟 Platinum</span></td>
+                <td>$50,000</td><td>5.0%</td><td>Unlimited</td><td>All perks + VIP events</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /vip -->
+
+  </main>
+
+  <!-- CHAT PANEL -->
+  <aside id="chat-panel">
+    <div class="chat-header">
+      💬 Live Chat
+      <div class="chat-online-dot" title="Live"></div>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="chat-input" placeholder="Say something…" maxlength="200"
+        onkeydown="if(event.key==='Enter')sendChatMsg()"/>
+      <button class="chat-send" onclick="sendChatMsg()">→</button>
+    </div>
+  </aside>
+</div><!-- /layout -->
+
+<script src="js/firebase.js"></script>
+<script src="js/games.js"></script>
+<script src="js/router.js"></script>
+<script>
+// ── Extra wiring ─────────────────────────────────────────────────────────────
+
+// Dice: sync second stats display with slider
+document.addEventListener('DOMContentLoaded', () => {
+  const slider = document.getElementById('dice-slider');
+  if (slider) {
+    slider.addEventListener('input', () => {
+      const chance = parseFloat(slider.value);
+      const mult   = Math.min(20, 99 / chance);
+      const bet    = parseFloat(document.getElementById('dice-bet')?.value || 1);
+      document.getElementById('dice-chance2').textContent = chance.toFixed(1) + '%';
+      document.getElementById('dice-mult2').textContent   = mult.toFixed(4) + '×';
+      document.getElementById('dice-profit').textContent  = '$' + (bet * (mult-1)).toFixed(2);
+    });
+    document.getElementById('dice-bet')?.addEventListener('input', () => {
+      const chance = parseFloat(slider.value);
+      const mult   = Math.min(20, 99/chance);
+      const bet    = parseFloat(document.getElementById('dice-bet').value || 1);
+      document.getElementById('dice-profit').textContent = '$' + (bet*(mult-1)).toFixed(2);
+    });
+  }
+
+  // Deposit balance sync
+  const depBal = document.getElementById('deposit-balance');
+  if (depBal) {
+    setInterval(() => {
+      if (UB.user) depBal.textContent = '$' + UB.balance.toFixed(2);
+    }, 500);
+  }
+
+  // Auth overlay close on backdrop click
+  document.getElementById('auth-overlay')?.addEventListener('click', e => {
+    if (e.target.id === 'auth-overlay') hideAuth();
+  });
+});
+
+// Deposit / bonus functions
+async function resetBalance() {
+  if (!requireAuth()) return;
+  await db.ref(`users/${UB.user.uid}/balance`).set(50);
+  showToast('Balance reset to $50!', 'info');
+}
+
+async function claimDaily() {
+  if (!requireAuth()) return;
+  const key  = `users/${UB.user.uid}/lastDaily`;
+  const snap = await db.ref(key).once('value');
+  const last = snap.val() || 0;
+  if (Date.now() - last < 86400000) {
+    showToast('Daily bonus already claimed! Come back tomorrow.', 'info'); return;
+  }
+  await db.ref(key).set(Date.now());
+  await updateBalance(10, 'Daily Bonus', 0, 1);
+  showToast('🎁 Daily bonus claimed! +$10', 'win');
+}
+
+async function claimWeekly() {
+  if (!requireAuth()) return;
+  const key  = `users/${UB.user.uid}/lastWeekly`;
+  const snap = await db.ref(key).once('value');
+  const last = snap.val() || 0;
+  if (Date.now() - last < 604800000) {
+    showToast('Weekly bonus already claimed! Come back in 7 days.', 'info'); return;
+  }
+  await db.ref(key).set(Date.now());
+  await updateBalance(50, 'Weekly Bonus', 0, 1);
+  showToast('🎁 Weekly bonus claimed! +$50', 'win');
+}
+
+// Update crash canvas on resize
+window.addEventListener('resize', () => {
+  const canvas = document.getElementById('crash-canvas');
+  if (canvas && crashState?.phase === 'idle') drawCrashIdle();
+  const pc = document.getElementById('plinko-canvas');
+  if (pc) drawPlinkoBoard();
+});
+</script>
+</body>
+</html>
