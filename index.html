@@ -2770,7 +2770,7 @@ function doRegister(){
 function finalizeLogin(user){initSiteConfig();
   _u=user;localStorage.setItem('ub_session',JSON.stringify({name:user.name,password:user.password}));
   $('authWrap').style.display='none';$('nav').style.display='flex';$('shell').style.display='flex';
-  startSync();initFeed();initChat();initGiveaway();initNotifs();initAdminAlerts();startShopCd();applyTheme();updateNavAva();initMobileNav();hideLoader();
+  startSync();initFeed();initChat();initGiveaway();initNotifs();initAdminAlerts();startShopCd();applyTheme();updateNavAva();initMobileNav();hideLoader();const _hash=location.hash.replace('#','');if(_hash&&document.getElementById('pg-'+_hash))goTab(_hash);history.replaceState(null,'',location.pathname);
 }
 
 /* ══════════════════════════════════════
