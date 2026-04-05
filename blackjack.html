@@ -3,197 +3,13 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>UniversalBets — Virtual Casino</title>
+<title>Blackjack — UniversalBets</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Nunito+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap" rel="stylesheet"/>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js">
-/* ══════════════════════════════════════
-   BLACKJACK
-══════════════════════════════════════ */
-(function(){
-  const SUITS=['♠','♥','♦','♣'],RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-  const RED=['♥','♦'];
-  let shoe=[],ph=[],dh=[],bet=0,phase='bet'; // bet|play|end
-  let st={w:0,l:0,p:0,profit:0},hist=[];
-
-  function $b(id){return document.getElementById(id)}
-  function fmtB(v){return parseFloat(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
-
-  // ── SHOE ──
-  function buildDeck(){const d=[];for(const s of SUITS)for(const r of RANKS)d.push({r,s});return d;}
-  window.bjShuffle=function(){
-    shoe=[];for(let i=0;i<6;i++)shoe.push(...buildDeck());
-    for(let i=shoe.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shoe[i],shoe[j]]=[shoe[j],shoe[i]];}
-    $b('bj-shoe').textContent='🃏 '+shoe.length+' cards remaining';
-    showToast('Shoe shuffled — 312 cards ready','info');
-    bjNewRound(true);
-  };
-  function draw(){
-    if(shoe.length<20)bjShuffle();
-    const c=shoe.pop();
-    $b('bj-shoe').textContent='🃏 '+shoe.length+' cards remaining';
-    return c;
-  }
-
-  // ── SCORE ──
-  function val(r){if(r==='A')return 11;if(['J','Q','K'].includes(r))return 10;return parseInt(r);}
-  function total(hand){
-    let t=0,a=0;
-    for(const c of hand){if(!c.hidden){t+=val(c.r);if(c.r==='A')a++;}}
-    while(t>21&&a>0){t-=10;a--;}
-    return t;
-  }
-  function isBJ(h){return h.length===2&&total(h)===21;}
-  function isSoft17(h){let t=0,a=0;for(const c of h){t+=val(c.r);if(c.r==='A')a++;}return t===17&&a>0;}
-
-  // ── CHIPS ──
-  window.bjAddChip=function(v){
-    if(phase!=='bet'||!me())return;
-    if(bet+v>(me().balance||0)){showToast('Insufficient balance!','info');return;}
-    bet+=v;updateBetUI();
-  };
-  window.bjClearBet=function(){if(phase!=='bet')return;bet=0;updateBetUI();};
-  function updateBetUI(){
-    $b('bj-betval').textContent='$'+fmtB(bet);
-    $b('bj-dealbtn').disabled=bet<=0;
-    $b('bj-clearbtn').style.display=bet>0?'':'none';
-  }
-
-  // ── DEAL ──
-  window.bjDeal=async function(){
-    if(!me()||bet<=0||phase!=='bet')return;
-    if(bet>(me().balance||0)){showToast('Insufficient balance!','info');return;}
-    phase='play';setPhase('play');bjClearResult();
-    await updateBalance(-bet,'Blackjack',bet,0);
-    ph=[draw(),draw()];dh=[draw(),{...draw(),hidden:true}];
-    render();
-    if(isBJ(ph)){dh[1].hidden=false;render();await sleep(200);
-      await settle(isBJ(dh)?'push':'blackjack');return;}
-    $b('bj-dblbtn').disabled=(me().balance||0)<bet;
-  };
-
-  // ── ACTIONS ──
-  window.bjHit=function(){if(phase!=='play')return;$b('bj-dblbtn').disabled=true;ph.push(draw());render();if(total(ph)>21)reveal();};
-  window.bjStand=function(){if(phase!=='play')return;reveal();};
-  window.bjDouble=async function(){
-    if(phase!=='play'||ph.length!==2)return;
-    if((me().balance||0)<bet){showToast('Insufficient balance!','info');return;}
-    await updateBalance(-bet,'Blackjack',bet*2,0);
-    bet*=2;$b('bj-betval').textContent='$'+fmtB(bet);
-    ph.push(draw());render();reveal();
-  };
-
-  // ── DEALER PLAY ──
-  async function reveal(){
-    phase='end';dh[1].hidden=false;render();await sleep(350);
-    while(total(dh)<17||isSoft17(dh)){
-      if(total(dh)>=17&&!isSoft17(dh))break;
-      dh.push(draw());render();await sleep(360);
-    }
-    const p=total(ph),d=total(dh);
-    let out;
-    if(p>21)out='lose';
-    else if(d>21)out='win';
-    else if(p>d)out='win';
-    else if(p<d)out='lose';
-    else out='push';
-    await settle(out);
-  }
-
-  // ── SETTLE ──
-  async function settle(out){
-    phase='end';
-    let payout=0,label='',sub='';
-    if(out==='blackjack'){payout=bet+bet*1.5;label='🃏 Blackjack!';sub='+$'+fmtB(bet*1.5);st.w++;st.profit+=bet*1.5;showToast('Blackjack! +$'+fmtB(bet*1.5),'win');}
-    else if(out==='win'){payout=bet*2;label='✓ You Win!';sub='+$'+fmtB(bet);st.w++;st.profit+=bet;showToast('You win $'+fmtB(bet)+'!','win');}
-    else if(out==='push'){payout=bet;label='Push';sub='Bet returned';st.p++;showToast('Push — bet returned','info');}
-    else{payout=0;label='✗ '+(total(ph)>21?'Bust':'Dealer Wins');sub='-$'+fmtB(bet);st.l++;st.profit-=bet;showToast('Lost $'+fmtB(bet),'info');}
-    if(payout>0)await updateBalance(payout,'Blackjack',bet,out==='blackjack'?2.5:out==='win'?2:1);
-    showResult(out,label,sub);addHist(out,bet,out==='blackjack'?bet*1.5:out==='win'?bet:out==='push'?0:-bet);
-    updateStats();setPhase('end');
-    setTimeout(()=>{bet=0;updateBetUI();},300);
-  }
-
-  // ── RENDER ──
-  function render(){
-    $b('bj-dcards').innerHTML=dh.map((c,i)=>cardHTML(c,i)).join('');
-    $b('bj-pcards').innerHTML=ph.map((c,i)=>cardHTML(c,i)).join('');
-    updateScores();
-  }
-  function cardHTML(c,i){
-    const d=`animation-delay:${i*0.07}s`;
-    if(c.hidden)return`<div class="bj-card down" style="${d}"></div>`;
-    const cls=RED.includes(c.s)?'red':'black';
-    return`<div class="bj-card ${cls}" style="${d}">
-      <div><div class="bj-cr">${c.r}</div><div class="bj-cs">${c.s}</div></div>
-      <div class="bj-cc">${c.s}</div>
-      <div class="bj-cbr"><div class="bj-cr">${c.r}</div><div class="bj-cs">${c.s}</div></div>
-    </div>`;
-  }
-  function updateScores(){
-    const pt=ph.length?total(ph):0;
-    const vis=dh.filter(c=>!c.hidden);const dt=vis.length?total(vis):0;
-    const ps=$b('bj-pscore'),ds=$b('bj-dscore');
-    ps.textContent=pt||0;ps.className='bj-score'+(pt>21?' bust':pt===21&&ph.length===2?' bj':'');
-    ds.textContent=dt||0;ds.className='bj-score'+(dt>21?' bust':'');
-  }
-  function showResult(type,label,sub){
-    $b('bj-rpill').textContent=label;$b('bj-rpill').className='bj-rpill '+type;
-    $b('bj-rsub').textContent=sub;$b('bj-result').classList.add('show');
-  }
-  function bjClearResult(){$b('bj-result').classList.remove('show');}
-
-  // ── PHASES ──
-  function setPhase(p){
-    const deal=$b('bj-dealbtn'),play=$b('bj-playbts'),clr=$b('bj-clearbtn'),shuf=$b('bj-shufflebtn');
-    const chips=document.querySelectorAll('.bj-chip');
-    if(p==='bet'){
-      deal.style.display='';deal.disabled=bet<=0;deal.textContent='Deal';deal.onclick=bjDeal;
-      play.style.display='none';clr.style.display=bet>0?'':'none';shuf.disabled=false;
-      chips.forEach(c=>c.style.opacity='1');
-    }else if(p==='play'){
-      deal.style.display='none';play.style.display='';clr.style.display='none';shuf.disabled=true;
-      chips.forEach(c=>c.style.opacity='.4');
-    }else{
-      deal.style.display='';deal.disabled=false;
-      deal.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> New Hand';
-      deal.onclick=()=>bjNewRound();
-      play.style.display='none';clr.style.display='none';shuf.disabled=false;
-      chips.forEach(c=>c.style.opacity='1');
-    }
-  }
-  window.bjNewRound=function(silent){
-    ph=[];dh=[];phase='bet';bjClearResult();render();setPhase('bet');
-    if(!silent){bet=0;updateBetUI();}
-  };
-
-  // ── STATS + HISTORY ──
-  function updateStats(){
-    $b('bj-wins').textContent=st.w;$b('bj-losses').textContent=st.l;$b('bj-pushes').textContent=st.p;
-    const pe=$b('bj-profit');
-    pe.textContent=(st.profit>=0?'+':'')+'\$'+fmtB(Math.abs(st.profit));
-    pe.className='bj-sv '+(st.profit>=0?'g':'r');
-  }
-  function addHist(out,b,delta){
-    hist.unshift({out,b,delta});if(hist.length>20)hist.pop();
-    const el=$b('bj-hist');
-    el.innerHTML=hist.map(h=>{
-      const lbl=h.out==='blackjack'?'Blackjack':h.out.charAt(0).toUpperCase()+h.out.slice(1);
-      const ds=(h.delta>=0?'+':'')+'\$'+fmtB(Math.abs(h.delta));
-      return`<div class="bj-hrow">
-        <span class="bj-hout ${h.out}">${lbl}</span>
-        <span style="color:var(--lo);font-size:11px">\$${fmtB(h.b)}</span>
-        <span class="bj-hdelta ${h.delta>=0?'p':'n'}">${ds}</span>
-      </div>`;
-    }).join('');
-  }
-
-  function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-})();
-
-</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
+
 /* ═══════════════════════════════════════════════
    TOKENS — Rainbet-exact palette
 ═══════════════════════════════════════════════ */
@@ -1996,302 +1812,149 @@ img { display:block }
 
 /* Shell and nav display handled by JS correctly */
 
-/* ══ BLACKJACK GAME CSS ══ */
-.bj-page {
-  flex:1; display:flex; align-items:flex-start; justify-content:center;
-  padding:24px 20px 40px; overflow-y:auto; min-height:0;
-}
-.bj-wrap {
-  width:100%; max-width:860px;
-  display:grid; grid-template-columns:1fr 268px; gap:18px; align-items:start;
-}
-@media(max-width:768px){
-  .bj-page { padding:14px 12px 80px; }
-  .bj-wrap { grid-template-columns:1fr; gap:12px; }
-  .bj-side { order:-1; }
-  .bj-table { min-height:360px; padding:18px 14px 16px; }
-  .bj-cards { gap:5px; min-height:90px; }
-  .bj-card { width:58px; height:82px; padding:5px; }
-  .bj-cr { font-size:14px; }
-  .bj-cc { font-size:21px; }
-  .bj-chips { gap:5px; }
-  .bj-chip { width:40px; height:40px; font-size:9px; }
-  .bj-stats { grid-template-columns:repeat(4,1fr); }
-  .bj-card-ui { padding:13px; }
-}
-@media(max-width:480px){
-  .bj-page { padding:10px 10px 76px; }
-  .bj-card { width:50px; height:72px; padding:4px; }
-  .bj-cr { font-size:13px; }
-  .bj-cs { font-size:9px; }
-  .bj-cc { font-size:18px; }
-  .bj-chip { width:36px; height:36px; font-size:8px; border-width:2px; }
-  .bj-stats { grid-template-columns:repeat(2,1fr); }
-  .bj-rpill { font-size:1.2rem; padding:10px 20px; }
-  .bj-table-lbl { font-size:8px; }
-}
 
-/* Table */
-.bj-table {
-  background:linear-gradient(160deg,#0a1828 0%,#0d1e34 50%,#091420 100%);
-  border:1px solid var(--line2); border-radius:var(--rz);
-  padding:24px 20px 20px; position:relative; overflow:hidden;
-  min-height:460px; display:flex; flex-direction:column; align-items:center;
-}
-.bj-table::before {
-  content:''; position:absolute; inset:0; pointer-events:none;
-  background:
-    radial-gradient(ellipse 70% 50% at 50% 0%,rgba(64,112,255,.07),transparent 60%),
-    radial-gradient(ellipse 40% 30% at 80% 80%,rgba(61,214,140,.04),transparent 55%);
-}
-.bj-table-lbl {
-  font-size:9px; font-weight:700; color:var(--lo); text-transform:uppercase;
-  letter-spacing:.18em; margin-bottom:18px; position:relative; z-index:1;
-  display:flex; align-items:center; gap:8px; width:100%;
-}
-.bj-table-lbl::before,.bj-table-lbl::after{content:'';flex:1;height:1px;background:var(--line)}
+/* ════════════════════════════════════════
+   BLACKJACK
+════════════════════════════════════════ */
+.bj-page{flex:1;display:flex;overflow:hidden;min-height:0}
+.bj-main{flex:1;overflow-y:auto;padding:24px 24px 40px;display:flex;flex-direction:column;align-items:center}
+.bj-game{width:100%;max-width:680px}
 
-.bj-hand-zone { width:100%; text-align:center; position:relative; z-index:1 }
-.bj-hand-lbl {
-  font-size:10px; font-weight:700; color:var(--lo); text-transform:uppercase;
-  letter-spacing:.12em; margin-bottom:10px; display:flex; align-items:center; justify-content:center; gap:8px;
-}
-.bj-score {
-  display:inline-flex; align-items:center; justify-content:center;
-  background:var(--s4); border:1px solid var(--line2); border-radius:20px;
-  padding:2px 10px; font-size:12px; font-weight:800; color:var(--hi); min-width:28px;
-}
-.bj-score.bust{background:rgba(240,82,82,.2);border-color:rgba(240,82,82,.35);color:var(--dn)}
-.bj-score.bj{background:rgba(240,160,48,.2);border-color:rgba(240,160,48,.35);color:var(--gold)}
+/* Rules badge */
+.bj-rules-row{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-bottom:16px}
+.bj-rule-pill{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.08em}
+.bj-rule-pill.hi{color:var(--up);border-color:rgba(61,214,140,.18)}
 
-.bj-cards {
-  display:flex; justify-content:center; flex-wrap:wrap;
-  gap:7px; min-height:106px; align-items:center; padding:4px 0 14px;
+/* Felt table */
+.bj-felt{
+  background:radial-gradient(ellipse at 50% 40%,#0e3020 0%,#081a10 70%,#060e09 100%);
+  border:2px solid #0e3020;border-radius:20px;
+  padding:32px 28px 28px;position:relative;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(255,255,255,.03),inset 0 0 60px rgba(0,0,0,.4),0 20px 60px rgba(0,0,0,.6);
 }
-.bj-card {
-  width:68px; height:96px; border-radius:9px;
-  display:flex; flex-direction:column; justify-content:space-between;
-  padding:6px; position:relative; flex-shrink:0;
-  animation:bjDeal .22s cubic-bezier(.22,1,.36,1);
-  box-shadow:0 6px 18px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.07);
-  user-select:none;
-}
-@keyframes bjDeal{from{opacity:0;transform:translateY(-16px) scale(.9)}to{opacity:1;transform:none}}
-.bj-card.red{background:linear-gradient(145deg,#fff,#f5f5f5);color:#dc2626}
-.bj-card.black{background:linear-gradient(145deg,#fff,#f5f5f5);color:#111}
-.bj-card.down{
-  background:linear-gradient(145deg,#1a2a4a,#0d1a30);
-  border:1px solid rgba(64,112,255,.25);
-}
-.bj-card.down::after{
-  content:'';position:absolute;inset:5px;border-radius:5px;
-  border:1px solid rgba(64,112,255,.12);
-  background:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(64,112,255,.04) 3px,rgba(64,112,255,.04) 6px);
-}
-.bj-cr{font-family:'Georgia',serif;font-size:17px;font-weight:700;line-height:1;letter-spacing:-.02em}
-.bj-cs{font-size:11px;line-height:1}
-.bj-cc{
-  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  font-family:'Georgia',serif;font-size:26px;line-height:1;
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,.08));
-}
-.bj-cbr{position:absolute;bottom:6px;right:6px;transform:rotate(180deg)}
+.bj-felt::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(64,112,255,.04) 0%,transparent 60%);pointer-events:none}
+.bj-felt::after{content:'';position:absolute;top:12px;left:12px;right:12px;bottom:12px;border:1px solid rgba(255,255,255,.03);border-radius:14px;pointer-events:none}
 
-.bj-divider{width:100%;height:1px;background:linear-gradient(90deg,transparent,var(--line2),transparent);margin:2px 0 18px}
+.bj-zone{display:flex;flex-direction:column;align-items:center;gap:10px}
+.bj-zone.dealer{margin-bottom:24px}
+.bj-zone.player{margin-top:0}
+.bj-zone-lbl{font-size:10px;font-weight:700;color:rgba(255,255,255,.2);text-transform:uppercase;letter-spacing:2px}
+.bj-hval{font-size:13px;font-weight:700;color:rgba(255,255,255,.4);min-height:18px;transition:.2s;font-family:var(--fh)}
+.bj-hval.bust{color:var(--dn)}
+.bj-hval.blackjack{color:var(--up)}
+.bj-hval.showing{color:rgba(255,255,255,.6)}
+.bj-card-row{display:flex;justify-content:center;gap:10px;min-height:110px;align-items:center;flex-wrap:wrap}
+.bj-divider{width:80%;height:1px;background:rgba(255,255,255,.04);margin:0 auto 24px}
 
-/* Result overlay */
+/* Cards */
+.bj-card{
+  width:68px;height:100px;border-radius:9px;
+  display:flex;flex-direction:column;justify-content:space-between;padding:7px 8px;
+  font-family:'Georgia',serif;font-weight:700;flex-shrink:0;user-select:none;
+  box-shadow:0 4px 16px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);
+  animation:bjCardDeal .25s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes bjCardDeal{from{opacity:0;transform:translateY(-18px) scale(.85) rotate(-4deg)}to{opacity:1;transform:none}}
+.bj-card.red{background:#fff;color:#e03c3c}
+.bj-card.black{background:#fff;color:#1a1a2e}
+.bj-card.down{background:linear-gradient(135deg,#1a2a5e 25%,#0f1a40 25%,#0f1a40 50%,#1a2a5e 50%,#1a2a5e 75%,#0f1a40 75%);background-size:12px 12px;border:2px solid rgba(255,255,255,.08)}
+.bj-card-top{font-size:15px;line-height:1}
+.bj-card-center{font-size:26px;line-height:1;text-align:center;margin:auto}
+.bj-card-bot{font-size:15px;line-height:1;transform:rotate(180deg);align-self:flex-end}
+
+/* Result banner */
 .bj-result{
-  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  z-index:20;pointer-events:none;opacity:0;transition:opacity .18s;text-align:center;
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(.8);
+  background:rgba(10,14,23,.95);border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;padding:20px 36px;text-align:center;
+  z-index:10;pointer-events:none;opacity:0;
+  transition:opacity .3s,transform .3s;backdrop-filter:blur(12px);
 }
-.bj-result.show{opacity:1}
-.bj-rpill{
-  font-family:var(--fh);font-size:1.45rem;font-weight:900;
-  padding:12px 26px;border-radius:var(--rz);
-  box-shadow:0 12px 40px rgba(0,0,0,.65);
-  animation:bjPop .28s cubic-bezier(.22,1,.36,1);
+.bj-result.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.bj-result-main{font-family:var(--fh);font-size:28px;font-weight:800;margin-bottom:4px}
+.bj-result-main.win{color:var(--up)}
+.bj-result-main.lose{color:var(--dn)}
+.bj-result-main.push{color:var(--gold)}
+.bj-result-main.bj{color:#ffc400}
+.bj-result-sub{font-size:13px;color:var(--mid)}
+
+/* Control panel */
+.bj-controls{
+  width:280px;flex-shrink:0;background:var(--s2);border-left:1px solid var(--line);
+  display:flex;flex-direction:column;overflow-y:auto;padding:18px 15px;gap:14px;
 }
-@keyframes bjPop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
-.bj-rpill.win{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff}
-.bj-rpill.blackjack{background:linear-gradient(135deg,var(--gold),#d97706);color:#000}
-.bj-rpill.push{background:linear-gradient(135deg,var(--s4),var(--s5));color:var(--hi)}
-.bj-rpill.lose{background:linear-gradient(135deg,#b91c1c,#7f1d1d);color:#fff}
-.bj-rsub{font-size:13px;color:rgba(255,255,255,.85);margin-top:5px;font-weight:600}
+.bj-ctrl-lbl{font-size:10px;font-weight:800;color:var(--lo);text-transform:uppercase;letter-spacing:.15em;margin-bottom:9px}
+.bj-msg{font-size:12px;color:var(--mid);text-align:center;background:rgba(0,0,0,.15);border-radius:var(--rx);padding:10px 12px;min-height:38px;display:flex;align-items:center;justify-content:center;line-height:1.4}
 
-.bj-shoe{font-size:10px;color:var(--lo);text-align:center;margin-top:10px;z-index:1;position:relative}
+/* Bet input */
+.bj-bet-field{display:flex;align-items:center;background:var(--s4);border:1px solid var(--line);border-radius:var(--rx);overflow:hidden;margin-bottom:9px;transition:.13s}
+.bj-bet-field:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(64,112,255,.1)}
+.bj-bet-pfx{padding:0 12px;color:var(--up);font-weight:800;font-family:var(--fh);font-size:17px;flex-shrink:0;background:rgba(61,214,140,.05);border-right:1px solid var(--line);height:44px;display:flex;align-items:center}
+.bj-bet-inp{flex:1;background:transparent;border:none;outline:none;color:var(--hi);font-size:16px;font-weight:700;font-family:var(--fh);padding:0 12px;height:44px}
+.bj-bet-inp::-webkit-inner-spin-button{-webkit-appearance:none}
+.bj-bet-inp::placeholder{color:var(--lo);font-weight:400;font-size:14px}
 
-/* Side panel */
-.bj-side{display:flex;flex-direction:column;gap:12px}
-.bj-card-ui{background:var(--s3);border:1px solid var(--line);border-radius:var(--ry);padding:16px}
-.bj-card-title{font-size:10px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.1em;margin-bottom:13px}
+/* Chip grid */
+.bj-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:9px}
+.bj-chips.locked .bj-chip,.bj-chips.locked .bj-mod-btn{pointer-events:none;opacity:.3}
+.bj-chip{background:var(--s3);border:1px solid var(--line);border-radius:var(--rx);padding:8px 4px;text-align:center;font-family:var(--fh);font-size:13px;font-weight:700;cursor:pointer;color:var(--lo);transition:.14s}
+.bj-chip:hover{background:var(--s4);color:var(--hi);border-color:var(--line2);transform:translateY(-1px)}
+.bj-chip.c-blue{color:#60a5fa;border-color:rgba(96,165,250,.18)}
+.bj-chip.c-green{color:var(--up);border-color:rgba(61,214,140,.18)}
+.bj-chip.c-yellow{color:var(--gold);border-color:rgba(240,160,48,.18)}
+.bj-chip.c-red{color:var(--dn);border-color:rgba(240,82,82,.18)}
+.bj-chip.c-purple{color:#c084fc;border-color:rgba(192,132,252,.18)}
+.bj-mod-row{display:flex;gap:6px;margin-bottom:4px}
+.bj-mod-btn{flex:1;background:var(--s3);border:1px solid var(--line);border-radius:var(--rx);padding:7px;text-align:center;font-size:12px;font-weight:700;color:var(--lo);cursor:pointer;transition:.13s;font-family:var(--fn)}
+.bj-mod-btn:hover{background:var(--s4);color:var(--hi)}
 
-/* Chips */
-.bj-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
-.bj-chip{
-  width:46px;height:46px;border-radius:50%;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:900;font-family:var(--fh);
-  border:3px solid;transition:.13s;
-  box-shadow:0 3px 8px rgba(0,0,0,.4);
+/* Current bet display */
+.bj-bet-box{background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:var(--rx);padding:11px 13px;display:flex;justify-content:space-between;align-items:center}
+.bj-bet-box-lbl{font-size:10px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.1em}
+.bj-bet-box-val{font-family:var(--fh);font-size:20px;font-weight:700;color:var(--hi)}
+
+/* Action buttons */
+.bj-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bj-act{
+  padding:14px 8px;border-radius:var(--rx);border:none;
+  font-size:13px;font-weight:800;cursor:pointer;font-family:var(--fn);
+  text-transform:uppercase;letter-spacing:.04em;transition:.18s;text-align:center;
 }
-.bj-chip:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(0,0,0,.5)}
-.bj-chip[data-v="1"]{background:radial-gradient(circle,#3b4a6b,#1e2a4a);border-color:#4a5a8a;color:#93c5fd}
-.bj-chip[data-v="5"]{background:radial-gradient(circle,#1a3a1a,#0d2010);border-color:#2d6b2d;color:#4ade80}
-.bj-chip[data-v="25"]{background:radial-gradient(circle,#4a1a4a,#280d28);border-color:#7a2d7a;color:#e879f9}
-.bj-chip[data-v="100"]{background:radial-gradient(circle,#1a1a4a,#0d0d28);border-color:#2d2d8a;color:#818cf8}
-.bj-chip[data-v="500"]{background:radial-gradient(circle,#4a1a1a,#280d0d);border-color:#8a2d2d;color:#fca5a5}
-.bj-chip[data-v="1000"]{background:radial-gradient(circle,#3a2800,#251a00);border-color:#7a5a00;color:#fcd34d}
+.bj-act:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.12)}
+.bj-act:disabled{opacity:.22;cursor:default;transform:none;filter:none}
+.bj-act.deal{background:var(--blue);color:#fff;box-shadow:0 4px 16px rgba(64,112,255,.25);grid-column:span 2}
+.bj-act.hit{background:rgba(61,214,140,.12);border:1px solid rgba(61,214,140,.25);color:var(--up)}
+.bj-act.stand{background:rgba(240,82,82,.1);border:1px solid rgba(240,82,82,.25);color:var(--dn)}
+.bj-act.dbl{background:rgba(240,160,48,.1);border:1px solid rgba(240,160,48,.25);color:var(--gold)}
+.bj-act.split{background:rgba(192,132,252,.1);border:1px solid rgba(192,132,252,.25);color:#c084fc}
+.bj-act.insure{background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);color:#60a5fa}
+.bj-act.surrender{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--lo)}
+.bj-act.newrnd{background:rgba(64,112,255,.1);border:1px solid rgba(64,112,255,.25);color:var(--blue);grid-column:span 2}
 
-/* Bet display */
-.bj-bet-disp{
-  background:var(--s4);border:1px solid var(--line);border-radius:var(--rx);
-  padding:10px 13px;display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;
-}
-.bj-bet-lbl{font-size:10px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.1em}
-.bj-bet-val{font-family:var(--fh);font-size:1.15rem;font-weight:900;color:var(--hi)}
+/* Insurance modal */
+#bjInsModal{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:5000;display:flex;align-items:center;justify-content:center}
+.bj-ins-card{background:var(--s2);border:1px solid var(--line2);border-radius:var(--rz);padding:32px 28px;max-width:320px;width:90%;text-align:center;box-shadow:0 30px 60px rgba(0,0,0,.5)}
+.bj-ins-title{font-family:var(--fh);font-size:22px;font-weight:800;margin-bottom:8px;color:#ffc400}
+.bj-ins-sub{font-size:13px;color:var(--mid);margin-bottom:22px;line-height:1.5}
+.bj-ins-btns{display:flex;gap:10px}
+.bj-ins-btn{flex:1;padding:13px;border-radius:var(--rx);border:none;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--fn);text-transform:uppercase;letter-spacing:.04em;transition:.18s}
+.bj-ins-yes{background:#ffc400;color:#000}
+.bj-ins-yes:hover{filter:brightness(1.1)}
+.bj-ins-no{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--mid)}
+.bj-ins-no:hover{background:rgba(255,255,255,.1);color:var(--hi)}
 
-/* Buttons */
-.bj-btn{
-  width:100%;padding:11px;border:none;border-radius:var(--rx);
-  font-size:13px;font-weight:800;cursor:pointer;transition:.13s;
-  font-family:var(--fn);letter-spacing:.03em;
-  display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:7px;
-}
-.bj-btn:last-child{margin-bottom:0}
-.bj-btn:disabled{opacity:.32;cursor:default;transform:none!important}
-.bj-btn:hover:not(:disabled){transform:translateY(-1px)}
-.bj-btn.deal{background:linear-gradient(135deg,var(--blue),var(--blue-dim));color:#fff;box-shadow:0 4px 14px rgba(64,112,255,.3)}
-.bj-btn.deal:hover:not(:disabled){box-shadow:0 6px 20px rgba(64,112,255,.45)}
-.bj-btn.hit{background:var(--s4);border:1px solid var(--line2);color:var(--hi)}
-.bj-btn.hit:hover:not(:disabled){background:var(--s5)}
-.bj-btn.stand{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff}
-.bj-btn.dbl{background:linear-gradient(135deg,var(--gold),#d97706);color:#000}
-.bj-btn.ghost{background:transparent;border:1px solid var(--line);color:var(--mid)}
-.bj-btn.ghost:hover:not(:disabled){border-color:var(--line2);color:var(--hi)}
-.bj-btn-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px}
-.bj-btn-row .bj-btn{margin-bottom:0}
+/* Sync flash */
+#bjSync{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);border-radius:var(--rx);padding:7px 16px;font-size:11px;color:var(--up);display:none;z-index:200;white-space:nowrap}
 
-/* Stats */
-.bj-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.bj-stat{background:var(--s4);border:1px solid var(--line);border-radius:var(--rx);padding:10px;text-align:center}
-.bj-sv{font-family:var(--fh);font-size:1rem;font-weight:900;color:var(--hi);margin-bottom:2px}
-.bj-sv.g{color:var(--up)} .bj-sv.r{color:var(--dn)}
-.bj-sl{font-size:9px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.1em}
-
-/* History */
-.bj-hist{max-height:150px;overflow-y:auto}
-.bj-hrow{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;
-}
-.bj-hrow:last-child{border-bottom:none}
-.bj-hout{font-weight:700;padding:2px 8px;border-radius:20px;font-size:10px;text-transform:uppercase}
-.bj-hout.win{background:rgba(61,214,140,.14);color:var(--up)}
-.bj-hout.lose{background:rgba(240,82,82,.14);color:var(--dn)}
-.bj-hout.push{background:rgba(255,255,255,.08);color:var(--mid)}
-.bj-hout.blackjack{background:rgba(240,160,48,.18);color:var(--gold)}
-.bj-hdelta{font-weight:700}
-.bj-hdelta.p{color:var(--up)} .bj-hdelta.n{color:var(--dn)}
-.bj-hempty{padding:14px 0;text-align:center;color:var(--lo);font-size:12px}
-
-/* Rules */
-.bj-rule{display:flex;justify-content:space-between;font-size:11px;color:var(--mid);padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
-.bj-rule:last-child{border-bottom:none}
-.bj-rule span:last-child{font-weight:700;color:var(--hi)}
+/* Mobile */
+@media(max-width:900px){.bj-controls{width:100%;border-left:none;border-top:1px solid var(--line)}}
+@media(max-width:768px){.bj-page{flex-direction:column;overflow:visible}.bj-main{overflow:visible;padding:14px 14px 20px}.bj-controls{padding:14px 14px 80px}}
+@media(max-width:500px){.bj-card{width:56px;height:84px;padding:5px 6px}.bj-card-top,.bj-card-bot{font-size:13px}.bj-card-center{font-size:20px}}
 
 </style>
 </head>
 <body>
 
-<!-- LOADER -->
-<div id="loader">
-  <div class="ld-brand">
-    <div class="ld-cube">U</div>
-    <div class="ld-name">Universal<span>Bets</span></div>
-  </div>
-  <div class="ld-prog"><div class="ld-bar" id="ldBar"></div></div>
-  <div class="ld-msg" id="ldMsg">Connecting…</div>
-</div>
-
-<!-- BAN SCREEN -->
-<div id="banScreen">
-  <div class="ban-big">🔨</div>
-  <div class="ban-hed">You've Been Banned</div>
-  <div class="ban-chip"><div class="ban-chip-dot"></div>Access Denied</div>
-  <div class="ban-txt">Your account and device have been banned from UniversalBets. Contact support if you believe this is an error.</div>
-  <div class="ban-reas" id="banReas">Reason: Violation of Terms of Service</div>
-</div>
-
-<!-- TOASTS -->
-<div id="toasts"></div>
-
-<!-- ══════════════════════════════════════════
-     AUTH SCREEN
-══════════════════════════════════════════ -->
-<div id="authWrap">
-  <div class="auth-shell">
-
-    <!-- Left canvas -->
-    <div class="auth-canvas">
-      <div class="auth-canvas-gfx"></div>
-      <div class="auth-mark">
-        <div class="auth-mark-box">U</div>
-        <div class="auth-mark-label">Universal<span>Bets</span></div>
-      </div>
-      <h1 class="auth-headline">Play smarter.<br/>Win <em>bigger</em>.</h1>
-      <p class="auth-lead">Virtual casino with 10+ original games, global leaderboards, and $100 giveaways every 2 hours. Start with $50 free — no deposit required.</p>
-      <div class="auth-metrics">
-        <div class="am-cell"><div class="am-val">10<span>+</span></div><div class="am-key">Games</div></div>
-        <div class="am-cell"><div class="am-val"><span>$</span>50</div><div class="am-key">Free Start</div></div>
-        <div class="am-cell"><div class="am-val">24<span>/7</span></div><div class="am-key">Live Chat</div></div>
-      </div>
-      <ul class="auth-feature-list">
-        <li><div class="af-check">✓</div>Provably fair games with transparent house edges</li>
-        <li><div class="af-check">✓</div>Global leaderboard — climb the ranks daily</li>
-        <li><div class="af-check">✓</div>$100 giveaways every 2 hours, free to enter</li>
-        <li><div class="af-check">✓</div>Custom themes, titles, and profile cards</li>
-      </ul>
-    </div>
-
-    <!-- Right form -->
-    <div class="auth-form-col">
-      <div class="auth-toggle">
-        <div class="atb on" id="atIn" onclick="authTab('in')">Sign In</div>
-        <div class="atb" id="atReg" onclick="authTab('reg')">Register</div>
-      </div>
-
-      <!-- Sign In -->
-      <div class="auth-panel on" id="apIn">
-        <div class="form-hed">Welcome back</div>
-        <div class="form-sub">Sign in to continue playing.</div>
-        <div class="fgroup"><label>Username</label><input id="siUser" type="text" placeholder="your username" maxlength="20" autocomplete="username" onkeydown="if(event.key==='Enter')doSignIn()"/></div>
-        <div class="fgroup"><label>Password</label><input id="siPass" type="password" placeholder="••••••••" maxlength="100" autocomplete="current-password" onkeydown="if(event.key==='Enter')doSignIn()"/></div>
-        <div class="ferr" id="siErr"></div>
-        <button class="btn-fill" id="siBtn" onclick="doSignIn()">Sign In</button>
-        <div class="swap-line">New here? <a onclick="authTab('reg')">Create a free account</a></div>
-      </div>
-
-      <!-- Register -->
-      <div class="auth-panel" id="apReg">
-        <div class="form-hed">Create account</div>
-        <div class="form-sub">Get <strong>$50.00 free</strong> credits — no deposit needed.</div>
-        <div class="fgroup"><label>Username</label><input id="regUser" type="text" placeholder="letters &amp; numbers only" maxlength="20" autocomplete="username" oninput="validateRegUser()" onkeydown="if(event.key==='Enter')doRegister()"/></div>
-        <div class="ferr" id="regUserErr"></div>
-        <div class="fgroup"><label>Password</label><input id="regPass" type="password" placeholder="at least 4 characters" maxlength="100" autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()"/></div>
-        <div class="fgroup"><label>Confirm Password</label><input id="regConf" type="password" placeholder="repeat password" maxlength="100" autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()"/></div>
-        <div class="ferr" id="regErr"></div>
-        <button class="btn-fill" id="regBtn" onclick="doRegister()">Create Account</button>
-        <div class="free-notice"><div class="fn-dot"></div>You'll receive <strong>&nbsp;$50.00&nbsp;</strong> in virtual credits the moment your account is created.</div>
-        <div class="swap-line">Already have one? <a onclick="authTab('in')">Sign in</a></div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════
-     TOP NAV
-══════════════════════════════════════════ -->
 <div class="maint-banner" id="maintBanner">🔧 This site is currently under maintenance. Some features may be unavailable.</div>
 <div class="announce-banner" id="announceBanner"></div>
 <nav id="nav">
@@ -2307,22 +1970,18 @@ img { display:block }
   </div>
 </nav>
 
-<!-- ══════════════════════════════════════════
-     SHELL
-══════════════════════════════════════════ -->
 <div id="shell">
   <div class="shell-body">
-
     <!-- Icon sidebar -->
     <aside class="sidenav">
-      <a href="index.html" style="display:flex;align-items:center;justify-content:center;height:38px;margin:1px 9px;border-radius:var(--rx);color:var(--lo);text-decoration:none;transition:.12s;font-size:16px;flex-shrink:0;overflow:hidden;white-space:nowrap;border:1px solid transparent;width:calc(var(--sb-w) - 18px)" title="Back to Lobby">←</a>
+      <a href="index.html" class="sn-item" style="text-decoration:none;font-size:15px" data-tip="Lobby" data-ico="←"></a>
       <div class="sn-div"></div>
       <!-- Admin (hidden unless admin) -->
       <div id="sbAdmin" style="display:none">
         <div class="sn-item admin-icon" id="sn-admin" data-tip="Admin Panel" onclick="location.href='index.html#admin'" data-ico="👑"></div>
         <div class="sn-div"></div>
       </div>
-      <div class="sn-item"  id="sn-home"        data-tip="Home"        onclick="location.href='index.html'" data-ico="🏠"></div>
+      <div class="sn-item" id="sn-home"        data-tip="Home"        onclick="location.href='index.html'" data-ico="🏠"></div>
       <div class="sn-item"     id="sn-originals"   data-tip="Originals"   onclick="location.href='index.html#originals'" data-ico="🎮"></div>
       <div class="sn-item"     id="sn-leaderboard" data-tip="Leaderboard" onclick="location.href='index.html#leaderboard'" data-ico="🏆"></div>
       <div class="sn-item"     id="sn-giveaway"    data-tip="Giveaway"    onclick="location.href='index.html#giveaway'" data-ico="🎁"></div>
@@ -2332,107 +1991,92 @@ img { display:block }
       <div class="sn-item"     id="sn-inventory"   data-tip="Inventory"   onclick="location.href='index.html#inventory'" data-ico="🎒"></div>
 
     </aside>
-
-    <!-- Content -->
     <main class="content" id="contentArea">
-
       <!-- BLACKJACK PAGE -->
       <div class="page on" id="pg-blackjack">
         <div class="bj-page">
-          <div class="bj-wrap">
 
-            <!-- Table -->
-            <div class="bj-table">
-              <div class="bj-table-lbl">Blackjack · 6 Decks · Dealer Stands Soft 17</div>
+          <!-- Table area -->
+          <div class="bj-main">
+            <div class="bj-game">
 
-              <div class="bj-hand-zone">
-                <div class="bj-hand-lbl">Dealer <span class="bj-score" id="bj-dscore">0</span></div>
-                <div class="bj-cards" id="bj-dcards"></div>
-              </div>
-
-              <div class="bj-divider"></div>
-
-              <div class="bj-hand-zone">
-                <div class="bj-hand-lbl"><span class="bj-score" id="bj-pscore">0</span> Your Hand</div>
-                <div class="bj-cards" id="bj-pcards"></div>
-              </div>
-
-              <div class="bj-result" id="bj-result">
-                <div class="bj-rpill" id="bj-rpill"></div>
-                <div class="bj-rsub" id="bj-rsub"></div>
-              </div>
-
-              <div class="bj-shoe" id="bj-shoe">🃏 Click Shuffle to begin</div>
-            </div>
-
-            <!-- Side panel -->
-            <div class="bj-side">
-
-              <!-- Bet -->
-              <div class="bj-card-ui">
-                <div class="bj-card-title">Place Your Bet</div>
-                <div class="bj-chips">
-                  <div class="bj-chip" data-v="1"    onclick="bjAddChip(1)">$1</div>
-                  <div class="bj-chip" data-v="5"    onclick="bjAddChip(5)">$5</div>
-                  <div class="bj-chip" data-v="25"   onclick="bjAddChip(25)">$25</div>
-                  <div class="bj-chip" data-v="100"  onclick="bjAddChip(100)">$100</div>
-                  <div class="bj-chip" data-v="500"  onclick="bjAddChip(500)">$500</div>
-                  <div class="bj-chip" data-v="1000" onclick="bjAddChip(1000)">$1K</div>
+              <!-- Felt table -->
+              <div class="bj-felt">
+                <div class="bj-zone dealer">
+                  <div class="bj-zone-lbl">Dealer</div>
+                  <div class="bj-card-row" id="bj-dcards"></div>
+                  <div class="bj-hval" id="bj-dval"></div>
                 </div>
-                <div class="bj-bet-disp">
-                  <span class="bj-bet-lbl">Bet</span>
-                  <span class="bj-bet-val" id="bj-betval">$0.00</span>
+                <div class="bj-divider"></div>
+                <div class="bj-zone player">
+                  <div class="bj-hval" id="bj-pval"></div>
+                  <div class="bj-card-row" id="bj-pcards"></div>
+                  <div class="bj-zone-lbl">Your Hand</div>
                 </div>
-                <button class="bj-btn deal" id="bj-dealbtn" onclick="bjDeal()" disabled>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
-                  Deal
-                </button>
-                <div class="bj-btn-row" id="bj-playbts" style="display:none">
-                  <button class="bj-btn hit"   onclick="bjHit()">Hit</button>
-                  <button class="bj-btn stand" onclick="bjStand()">Stand</button>
-                  <button class="bj-btn dbl"   id="bj-dblbtn" onclick="bjDouble()">Double</button>
-                  <button class="bj-btn ghost"  onclick="bjNewRound()">New Hand</button>
+                <div class="bj-result" id="bj-result">
+                  <div class="bj-result-main" id="bj-rmain"></div>
+                  <div class="bj-result-sub" id="bj-rsub"></div>
                 </div>
-                <button class="bj-btn ghost" id="bj-clearbtn" onclick="bjClearBet()" style="display:none">Clear Bet</button>
-                <button class="bj-btn ghost" id="bj-shufflebtn" onclick="bjShuffle()">🔀 Shuffle Shoe</button>
-              </div>
-
-              <!-- Stats -->
-              <div class="bj-card-ui">
-                <div class="bj-card-title">Session</div>
-                <div class="bj-stats">
-                  <div class="bj-stat"><div class="bj-sv" id="bj-wins">0</div><div class="bj-sl">Wins</div></div>
-                  <div class="bj-stat"><div class="bj-sv" id="bj-losses">0</div><div class="bj-sl">Losses</div></div>
-                  <div class="bj-stat"><div class="bj-sv" id="bj-pushes">0</div><div class="bj-sl">Pushes</div></div>
-                  <div class="bj-stat"><div class="bj-sv g" id="bj-profit">$0</div><div class="bj-sl">Profit</div></div>
-                </div>
-              </div>
-
-              <!-- History -->
-              <div class="bj-card-ui">
-                <div class="bj-card-title">Recent Hands</div>
-                <div class="bj-hist" id="bj-hist">
-                  <div class="bj-hempty">No hands yet</div>
-                </div>
-              </div>
-
-              <!-- Rules -->
-              <div class="bj-card-ui">
-                <div class="bj-card-title">Rules</div>
-                <div class="bj-rule"><span>Blackjack pays</span><span>3 : 2</span></div>
-                <div class="bj-rule"><span>Dealer stands</span><span>Soft 17</span></div>
-                <div class="bj-rule"><span>Double down</span><span>Any 2 cards</span></div>
-                <div class="bj-rule"><span>Decks</span><span>6</span></div>
-                <div class="bj-rule"><span>House edge</span><span>~0.5%</span></div>
               </div>
 
             </div>
           </div>
+
+          <!-- Control panel -->
+          <aside class="bj-controls">
+
+            <div class="bj-msg" id="bj-msg">Place a bet and deal to start.</div>
+
+            <!-- Bet -->
+            <div id="bj-bet-section">
+              <div class="bj-ctrl-lbl">Place Bet</div>
+              <div class="bj-bet-field" id="bj-bet-field">
+                <div class="bj-bet-pfx">$</div>
+                <input type="number" id="bj-betinp" class="bj-bet-inp" placeholder="Enter amount…" min="0.01" step="0.01" oninput="bjOnBetInput()">
+              </div>
+              <div class="bj-chips" id="bj-chips">
+                <div class="bj-chip c-blue"   onclick="bjSetBet(1)">$1</div>
+                <div class="bj-chip c-green"  onclick="bjSetBet(5)">$5</div>
+                <div class="bj-chip c-green"  onclick="bjSetBet(10)">$10</div>
+                <div class="bj-chip c-yellow" onclick="bjSetBet(25)">$25</div>
+                <div class="bj-chip c-yellow" onclick="bjSetBet(50)">$50</div>
+                <div class="bj-chip c-red"    onclick="bjSetBet(100)">$100</div>
+                <div class="bj-chip c-purple" onclick="bjSetBet(250)">$250</div>
+                <div class="bj-chip c-purple" onclick="bjSetBet(500)">$500</div>
+                <div class="bj-chip" style="font-size:11px" onclick="bjSetBet(me()?me().balance:0)">MAX</div>
+              </div>
+              <div class="bj-mod-row" id="bj-mods">
+                <div class="bj-mod-btn" onclick="bjModBet(.5)">½</div>
+                <div class="bj-mod-btn" onclick="bjModBet(2)">2×</div>
+                <div class="bj-mod-btn" onclick="bjClearBet()">Clear</div>
+              </div>
+              <div class="bj-bet-box">
+                <span class="bj-bet-box-lbl">Current Bet</span>
+                <span class="bj-bet-box-val" id="bj-betdisp">$0.00</span>
+              </div>
+            </div>
+
+            <div style="height:1px;background:var(--line)"></div>
+
+            <!-- Actions -->
+            <div>
+              <div class="bj-ctrl-lbl">Actions</div>
+              <div class="bj-action-grid" id="bj-actions">
+                <button class="bj-act deal"     id="bjDeal"      onclick="bjDeal()"       disabled>Deal</button>
+                <button class="bj-act hit"      id="bjHit"       onclick="bjHit()"        disabled>Hit</button>
+                <button class="bj-act stand"    id="bjStand"     onclick="bjStand()"      disabled>Stand</button>
+                <button class="bj-act dbl"      id="bjDouble"    onclick="bjDouble()"     disabled>Double</button>
+                <button class="bj-act split"    id="bjSplit"     onclick="bjSplit()"      disabled>Split</button>
+                <button class="bj-act insure"   id="bjInsure"    onclick="bjInsure()"     disabled>Insurance</button>
+                <button class="bj-act surrender" id="bjSurrender" onclick="bjSurrender()" disabled>Surrender</button>
+                <button class="bj-act newrnd"   id="bjNew"       onclick="bjNew()"        style="display:none">New Round</button>
+              </div>
+            </div>
+
+          </aside>
         </div>
       </div>
-
     </main>
-
     <!-- RIGHT PANEL — Rainbet style -->
     <aside class="rp col" id="rp">
 
@@ -2525,7 +2169,6 @@ img { display:block }
 
       </div>
     </aside>
-
   </div>
 </div>
 
@@ -2533,11 +2176,10 @@ img { display:block }
 <nav id="mobileNav" style="display:none">
   <button class="mn-btn" onclick="location.href='index.html'">🏠<span>Home</span></button>
   <button class="mn-btn" onclick="location.href='index.html#originals'">🎮<span>Games</span></button>
-  <button class="mn-btn mn-bj on" onclick="">🃏<span>Blackjack</span></button>
+  <button class="mn-btn mn-bj on">🃏<span>Blackjack</span></button>
   <button class="mn-btn" onclick="location.href='index.html#giveaway'">🎁<span>Giveaway</span></button>
   <button class="mn-btn" onclick="me()&&openProfile(me().name)">👤<span>Profile</span></button>
 </nav>
-
 <!-- PROFILE MODAL -->
 <div id="prfModal" onclick="if(event.target===this)closeProfile()">
   <div class="prf-sheet">
@@ -2591,9 +2233,29 @@ img { display:block }
   </div>
 </div>
 
-<!-- Admin is now a page (pg-admin) -->
+
+<!-- Insurance modal -->
+<div id="bjInsModal" style="display:none">
+  <div class="bj-ins-card">
+    <div class="bj-ins-title">Insurance?</div>
+    <div class="bj-ins-sub">Dealer shows an Ace. Take insurance for $<span id="bj-ins-cost">0</span>? Pays 2:1 if dealer has Blackjack.</div>
+    <div class="bj-ins-btns">
+      <button class="bj-ins-btn bj-ins-yes" onclick="bjResolveIns(true)">Yes, insure</button>
+      <button class="bj-ins-btn bj-ins-no"  onclick="bjResolveIns(false)">No thanks</button>
+    </div>
+  </div>
+</div>
+<div id="bjSync">✓ Balance synced</div>
+
+
+<div id="admModal"></div>
+<div id="loader"><div class="ld-brand"><div class="ld-cube">U</div><div class="ld-name">Universal<span>Bets</span></div></div><div class="ld-prog"><div class="ld-bar" id="ldBar"></div></div><div class="ld-msg" id="ldMsg">Loading…</div></div>
+<div id="authWrap" style="display:none"></div>
+<div id="banScreen" style="display:none"><div class="ban-ico">🔨</div><div class="ban-title">Banned</div><div class="ban-txt">Your account has been banned.</div><div class="ban-reas" id="banReas"></div><a href="index.html" style="color:var(--blue);font-size:13px;margin-top:8px">Back to site</a></div>
+<div id="toasts"></div>
 
 <script>
+
 /* ══════════════════════════════════════
    FIREBASE
 ══════════════════════════════════════ */
@@ -2705,7 +2367,7 @@ function doRegister(){
 function finalizeLogin(user){initSiteConfig();
   _u=user;localStorage.setItem('ub_session',JSON.stringify({name:user.name,password:user.password}));
   $('authWrap').style.display='none';$('nav').style.display='flex';$('shell').style.display='flex';
-  startSync();initFeed();initChat();initGiveaway();initNotifs();initAdminAlerts();startShopCd();applyTheme();updateNavAva();initMobileNav();hideLoader();goTab('blackjack');bjShuffle();
+  startSync();initChat();initNotifs();initAdminAlerts();applyTheme();updateNavAva();initMobileNav();hideLoader();
 }
 
 /* ══════════════════════════════════════
@@ -3972,6 +3634,375 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
     });
   }catch{localStorage.removeItem('ub_session');ldP(100);setTimeout(()=>{const l=$('loader');l.classList.add('out');setTimeout(()=>{l.style.display='none';$('authWrap').style.display='block';},400);},300);}
 })();
+
+
+/* ════════════════════════════════════════
+   BLACKJACK GAME
+════════════════════════════════════════ */
+(function(){
+  /* ── State ── */
+  let shoe=[],playerHand=[],dealerHand=[],splitHand=[];
+  let activeHand='player',bet=0,splitBet=0,insuranceBet=0,gamePhase='bet';
+  let _syncT=null;
+
+  const NUM_DECKS=6;
+  const RESHUFFLE_AT=Math.floor(52*NUM_DECKS*.25);
+  const SUITS=['♠','♥','♦','♣'];
+  const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+  /* ── Helpers ── */
+  const $b=id=>document.getElementById(id);
+  const fmt=v=>parseFloat(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const clean=v=>Math.round(v*100)/100;
+  const bal=()=>me()?.balance||0;
+  const isRed=s=>s==='♥'||s==='♦';
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+  /* ── SHOE ── */
+  function buildShoe(){
+    const cards=[];
+    for(let d=0;d<NUM_DECKS;d++) for(const s of SUITS) for(const r of RANKS) cards.push({rank:r,suit:s});
+    for(let i=cards.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=cards[i];cards[i]=cards[j];cards[j]=t;}
+    return cards;
+  }
+  function freshShoe(){shoe=buildShoe();}
+  function drawCard(){if(shoe.length<4)freshShoe();return shoe.shift();}
+
+  /* ── SCORING ── */
+  function cardVal(r){return r==='A'?11:['J','Q','K'].includes(r)?10:parseInt(r);}
+  function handTotal(hand){
+    let t=0,a=0;
+    for(const c of hand){t+=cardVal(c.rank);if(c.rank==='A')a++;}
+    while(t>21&&a>0){t-=10;a--;}return t;
+  }
+  function isSoft(hand){
+    let t=0,a=0;
+    for(const c of hand){t+=cardVal(c.rank);if(c.rank==='A')a++;}
+    while(t>21&&a>0){t-=10;a--;}
+    return a>0&&t<=21;
+  }
+  function isBust(hand){return handTotal(hand)>21;}
+  function isBJ(hand){return hand.length===2&&handTotal(hand)===21;}
+  function isPair(hand){return hand.length===2&&cardVal(hand[0].rank)===cardVal(hand[1].rank);}
+
+  /* ── BET ── */
+  window.bjOnBetInput=function(){
+    const raw=parseFloat($b('bj-betinp').value);
+    bet=isNaN(raw)||raw<0?0:clean(Math.min(raw,bal()));
+    updateBetDisp();
+    $b('bjDeal').disabled=bet<=0;
+  };
+  window.bjSetBet=function(v){
+    if(gamePhase!=='bet')return;
+    bet=clean(Math.min(Math.max(0,v),bal()));
+    const inp=$b('bj-betinp');if(inp)inp.value=bet>0?bet:'';
+    updateBetDisp();$b('bjDeal').disabled=bet<=0;
+  };
+  window.bjModBet=function(f){
+    if(gamePhase!=='bet')return;
+    bjSetBet(clean(Math.min(Math.max(0,bet*f),bal())));
+  };
+  window.bjClearBet=function(){
+    if(gamePhase!=='bet')return;
+    bet=0;const inp=$b('bj-betinp');if(inp)inp.value='';
+    updateBetDisp();$b('bjDeal').disabled=true;
+  };
+  function updateBetDisp(){$b('bj-betdisp').textContent='$'+fmt(bet);}
+
+  /* ── DEAL ── */
+  window.bjDeal=function(){
+    if(bet<=0||!me()){setMsg('Place a bet first.');return;}
+    if(bet>bal()){setMsg('Not enough balance.');return;}
+    if(shoe.length<=RESHUFFLE_AT)freshShoe();
+    splitHand=[];splitBet=0;insuranceBet=0;activeHand='player';
+    hideResult();
+    playerHand=[drawCard(),drawCard()];
+    dealerHand=[drawCard(),drawCard()];
+    gamePhase='player';
+    renderCards(dealerHand,'bj-dcards',true);
+    setHVal('bj-dval',dealerHand,true);
+    renderCards(playerHand,'bj-pcards',false);
+    setHVal('bj-pval',playerHand,false);
+    setPhase('player');
+    if(dealerHand[0].rank==='A')$b('bjInsure').disabled=false;
+    if(isBJ(playerHand)){setMsg('Blackjack! Dealer reveals…');setTimeout(()=>dealerTurn(),400);return;}
+    setMsg('Hit, Stand, Double, Split, or Surrender.');
+  };
+
+  /* ── HIT ── */
+  window.bjHit=function(){
+    if(gamePhase!=='player')return;
+    const hand=activeHand==='split'?splitHand:playerHand;
+    hand.push(drawCard());renderAllHands();
+    if(isBust(hand)){
+      if(activeHand==='player'&&splitHand.length>0){activeHand='split';setMsg('First hand bust! Playing split hand…');setPhase('player');}
+      else endRound('bust');
+    }else if(handTotal(hand)===21){
+      if(activeHand==='player'&&splitHand.length>0){activeHand='split';setMsg('21! Now playing split hand…');setPhase('player');}
+      else bjStand();
+    }
+  };
+
+  /* ── STAND ── */
+  window.bjStand=function(){
+    if(gamePhase!=='player')return;
+    if(activeHand==='player'&&splitHand.length>0){activeHand='split';setMsg('Standing. Now playing split hand…');setPhase('player');return;}
+    dealerTurn();
+  };
+
+  /* ── DOUBLE ── */
+  window.bjDouble=function(){
+    if(gamePhase!=='player')return;
+    const hand=activeHand==='split'?splitHand:playerHand;
+    const cb=activeHand==='split'?splitBet:bet;
+    if(hand.length!==2){setMsg('Can only double on first two cards.');return;}
+    if(bal()<cb){setMsg('Not enough balance to double.');return;}
+    if(activeHand==='split')splitBet=clean(splitBet*2);else bet=clean(bet*2);
+    updateBetDisp();hand.push(drawCard());renderAllHands();
+    if(isBust(hand)){
+      if(activeHand==='player'&&splitHand.length>0){activeHand='split';setMsg('Doubled — bust on first hand. Playing split…');setPhase('player');}
+      else endRound('bust');
+    }else{
+      if(activeHand==='player'&&splitHand.length>0){activeHand='split';setMsg('Doubled — '+handTotal(hand)+'. Playing split hand…');setPhase('player');}
+      else dealerTurn();
+    }
+  };
+
+  /* ── SPLIT ── */
+  window.bjSplit=function(){
+    if(gamePhase!=='player')return;
+    if(!isPair(playerHand)){setMsg('Can only split a pair.');return;}
+    if(activeHand==='split'){setMsg('Only one split allowed.');return;}
+    if(bal()<bet){setMsg('Not enough balance to split.');return;}
+    splitBet=bet;
+    splitHand=[playerHand.pop()];
+    playerHand.push(drawCard());splitHand.push(drawCard());
+    activeHand='player';renderAllHands();
+    setMsg('Split! Playing first hand — Hit or Stand.');setPhase('player');
+  };
+
+  /* ── INSURANCE ── */
+  window.bjInsure=function(){
+    if(gamePhase!=='player'||dealerHand[0]?.rank!=='A')return;
+    const cost=clean(bet/2);
+    if(bal()<cost){setMsg('Not enough balance for insurance.');return;}
+    $b('bjInsure').disabled=true;
+    $b('bj-ins-cost').textContent=fmt(cost);
+    $b('bjInsModal').style.display='flex';
+  };
+  window.bjResolveIns=function(take){
+    $b('bjInsModal').style.display='none';
+    if(take){insuranceBet=clean(bet/2);setMsg('Insurance placed ($'+fmt(insuranceBet)+'). Continue playing.');}
+    else setMsg('No insurance. Continue playing.');
+  };
+
+  /* ── SURRENDER ── */
+  window.bjSurrender=function(){
+    if(gamePhase!=='player')return;
+    const hand=activeHand==='split'?splitHand:playerHand;
+    if(hand.length!==2||activeHand==='split'){setMsg('Can only surrender on your first two cards.');return;}
+    const refund=clean(bet/2);
+    gamePhase='done';setPhase('done');
+    showResult('SURRENDER','Half bet returned — $'+fmt(refund),'push');
+    setMsg('Surrendered. $'+fmt(refund)+' returned.');
+    commitBalance(refund);
+  };
+
+  /* ── DEALER TURN ── */
+  function dealerTurn(){
+    gamePhase='dealer';
+    renderCards(dealerHand,'bj-dcards',false);setHVal('bj-dval',dealerHand,false);setMsg('Dealer reveals…');
+    function next(){
+      setTimeout(()=>{
+        const t=handTotal(dealerHand),soft=isSoft(dealerHand);
+        if(t<17||(t===17&&soft)){dealerHand.push(drawCard());renderCards(dealerHand,'bj-dcards',false);setHVal('bj-dval',dealerHand,false);next();}
+        else determineWinner();
+      },520);
+    }
+    setTimeout(next,650);
+  }
+
+  /* ── DETERMINE WINNER ── */
+  function determineWinner(){
+    const dTotal=handTotal(dealerHand),dBJ=isBJ(dealerHand),dBust=isBust(dealerHand);
+    let insDelta=0;
+    if(insuranceBet>0)insDelta=dBJ?clean(insuranceBet*2):-insuranceBet;
+
+    const pBJ=isBJ(playerHand),pBust=isBust(playerHand),pTotal=handTotal(playerHand);
+    let pDelta=0,pResult='';
+    if(pBust){pDelta=-bet;pResult='BUST';}
+    else if(pBJ&&dBJ){pDelta=0;pResult='PUSH';}
+    else if(pBJ&&!dBJ){pDelta=clean(bet*1.5);pResult='BLACKJACK';}
+    else if(!pBJ&&dBJ){pDelta=-bet;pResult='LOSE';}
+    else if(dBust){pDelta=bet;pResult='WIN';}
+    else if(pTotal>dTotal){pDelta=bet;pResult='WIN';}
+    else if(pTotal===dTotal){pDelta=0;pResult='PUSH';}
+    else{pDelta=-bet;pResult='LOSE';}
+
+    let sDelta=0;
+    if(splitHand.length>0){
+      const sBust=isBust(splitHand),sTotal=handTotal(splitHand);
+      if(sBust)sDelta=-splitBet;
+      else if(dBJ)sDelta=-splitBet;
+      else if(dBust)sDelta=splitBet;
+      else if(sTotal>dTotal)sDelta=splitBet;
+      else if(sTotal===dTotal)sDelta=0;
+      else sDelta=-splitBet;
+    }
+
+    const totalDelta=clean(pDelta+sDelta+insDelta);
+    let mainTxt='',subParts=[],type='';
+    if(pResult==='BLACKJACK'){mainTxt='BLACKJACK! 🃏';type='bj';}
+    else if(pResult==='WIN'){mainTxt='YOU WIN! 🎉';type='win';}
+    else if(pResult==='BUST'){mainTxt='BUST';type='lose';}
+    else if(pResult==='PUSH'){mainTxt='PUSH — TIE';type='push';}
+    else{mainTxt='DEALER WINS';type='lose';}
+
+    if(pResult==='BLACKJACK')subParts.push('BJ pays +$'+fmt(pDelta));
+    else if(pResult==='WIN')subParts.push('+$'+fmt(pDelta));
+    else if(pResult==='PUSH')subParts.push('Bet returned');
+    else subParts.push('-$'+fmt(Math.abs(pDelta)));
+    if(splitHand.length>0)subParts.push('Split: '+(sDelta>=0?'+':'-')+'$'+fmt(Math.abs(sDelta)));
+    if(insuranceBet>0)subParts.push('Insurance: '+(insDelta>=0?'+':'-')+'$'+fmt(Math.abs(insDelta)));
+    const subTxt=subParts.join(' · ');
+
+    setPhase('done');showResult(mainTxt,subTxt,type);setMsg(subTxt);
+    commitBalance(totalDelta);
+  }
+
+  function endRound(o){
+    if(o==='bust'){
+      const lost=clean(bet+(splitBet||0));
+      gamePhase='done';setPhase('done');
+      showResult('BUST','Lost $'+fmt(lost),'lose');setMsg('Bust! Lost $'+fmt(lost)+'.');
+      commitBalance(-lost);
+    }
+  }
+
+  /* ── RENDER ── */
+  function renderAllHands(){
+    const el=$b('bj-pcards');el.innerHTML='';
+    playerHand.forEach((c,i)=>{
+      const d=document.createElement('div');
+      d.className='bj-card '+(isRed(c.suit)?'red':'black');
+      d.style.animationDelay=i*.07+'s';
+      if(activeHand!=='player')d.style.opacity='.4';
+      d.innerHTML='<div class="bj-card-top">'+c.rank+'</div><div class="bj-card-center">'+c.suit+'</div><div class="bj-card-bot">'+c.rank+'</div>';
+      el.appendChild(d);
+    });
+    if(splitHand.length>0){
+      const sep=document.createElement('div');
+      sep.style.cssText='width:1px;height:90px;background:rgba(255,255,255,.12);margin:0 8px;align-self:center;flex-shrink:0;border-radius:1px';
+      el.appendChild(sep);
+      splitHand.forEach((c,i)=>{
+        const d=document.createElement('div');
+        d.className='bj-card '+(isRed(c.suit)?'red':'black');
+        d.style.animationDelay=i*.07+'s';
+        if(activeHand!=='split')d.style.opacity='.4';
+        else d.style.boxShadow='0 0 0 2px var(--blue),0 4px 16px rgba(0,0,0,.5)';
+        d.innerHTML='<div class="bj-card-top">'+c.rank+'</div><div class="bj-card-center">'+c.suit+'</div><div class="bj-card-bot">'+c.rank+'</div>';
+        el.appendChild(d);
+      });
+    }
+    if(splitHand.length>0){
+      const pv=$b('bj-pval');pv.textContent=handTotal(playerHand)+' / '+handTotal(splitHand);pv.className='bj-hval showing';
+    }else setHVal('bj-pval',playerHand,false);
+  }
+
+  function renderCards(hand,elId,hideHole){
+    const el=$b(elId);el.innerHTML='';
+    hand.forEach((c,i)=>{
+      if(hideHole&&i===1){const d=document.createElement('div');d.className='bj-card down';el.appendChild(d);return;}
+      const d=document.createElement('div');
+      d.className='bj-card '+(isRed(c.suit)?'red':'black');
+      d.style.animationDelay=i*.08+'s';
+      d.innerHTML='<div class="bj-card-top">'+c.rank+'</div><div class="bj-card-center">'+c.suit+'</div><div class="bj-card-bot">'+c.rank+'</div>';
+      el.appendChild(d);
+    });
+  }
+
+  function setHVal(elId,hand,hideHole){
+    const el=$b(elId);if(!el)return;
+    if(hideHole){el.textContent=cardVal(hand[0].rank)+' + ?';el.className='bj-hval showing';return;}
+    if(!hand||!hand.length){el.textContent='';return;}
+    const t=handTotal(hand);
+    el.textContent=t;el.className='bj-hval'+(isBust(hand)?' bust':isBJ(hand)?' blackjack':'');
+  }
+
+  /* ── PHASE UI ── */
+  function setPhase(p){
+    const inBet=p==='bet',inPlay=p==='player',inDone=p==='done';
+    const hand=activeHand==='split'?splitHand:playerHand;
+    const cb=activeHand==='split'?splitBet:bet;
+    $b('bjDeal').disabled=!inBet||bet<=0;
+    $b('bjHit').disabled=!inPlay;
+    $b('bjStand').disabled=!inPlay;
+    $b('bjDouble').disabled=!inPlay||hand.length!==2||bal()<cb;
+    $b('bjSplit').disabled=!inPlay||!isPair(playerHand)||activeHand==='split'||bal()<bet;
+    $b('bjInsure').disabled=!inPlay||!dealerHand.length||dealerHand[0]?.rank!=='A'||insuranceBet>0||bal()<clean(bet/2);
+    $b('bjSurrender').disabled=!inPlay||hand.length!==2||activeHand==='split';
+    $b('bjNew').style.display=inDone?'block':'none';
+    $b('bjDeal').style.display=!inDone?'block':'none';
+    const chips=$b('bj-chips'),mods=$b('bj-mods'),field=$b('bj-bet-field');
+    if(inBet){chips.classList.remove('locked');mods.classList.remove('locked');if(field){field.style.pointerEvents='auto';field.style.opacity='1';}}
+    else{chips.classList.add('locked');mods.classList.add('locked');if(field){field.style.pointerEvents='none';field.style.opacity='.4';}}
+  }
+
+  window.bjNew=function(){
+    hideResult();
+    playerHand=[];dealerHand=[];splitHand=[];
+    bet=0;splitBet=0;insuranceBet=0;activeHand='player';gamePhase='bet';
+    $b('bj-dcards').innerHTML='';$b('bj-pcards').innerHTML='';
+    $b('bj-dval').textContent='';$b('bj-pval').textContent='';
+    $b('bj-betinp').value='';updateBetDisp();setPhase('bet');
+    if(shoe.length<=RESHUFFLE_AT){freshShoe();setMsg('Shoe reshuffled. Place a bet to start.');}
+    else setMsg('Place a bet and deal to start.');
+  };
+
+  /* ── RESULT ── */
+  function showResult(main,sub,type){
+    $b('bj-rmain').textContent=main;$b('bj-rmain').className='bj-result-main '+type;
+    $b('bj-rsub').textContent=sub;$b('bj-result').classList.add('show');
+  }
+  function hideResult(){$b('bj-result').classList.remove('show');}
+  function setMsg(t){const el=$b('bj-msg');if(el)el.textContent=t;}
+
+  /* ── FIREBASE BALANCE ── */
+  function commitBalance(delta){
+    if(!me())return;
+    db.ref('users/'+me().name).transaction(u=>{
+      if(!u)return;
+      u.balance=Math.max(0,clean((u.balance||0)+delta));
+      return u;
+    },(err,ok)=>{
+      if(ok&&delta>0){
+        db.ref('recent_wins').push({name:me().name,amount:delta,ts:Date.now(),source:'Blackjack'});
+      }
+      if(ok)showSync();
+    });
+  }
+  function showSync(){
+    const el=$b('bjSync');if(!el)return;
+    el.style.display='block';clearTimeout(_syncT);
+    _syncT=setTimeout(()=>el.style.display='none',2000);
+  }
+
+  /* ── KEYBOARD ── */
+  document.addEventListener('keydown',e=>{
+    if(document.activeElement.tagName==='INPUT')return;
+    const k=e.key.toLowerCase();
+    if(k==='h'&&!$b('bjHit').disabled)bjHit();
+    if(k==='s'&&!$b('bjStand').disabled)bjStand();
+    if(k==='d'){if(!$b('bjDeal').disabled)bjDeal();else if(!$b('bjDouble').disabled)bjDouble();}
+    if(k==='n'&&gamePhase==='done')bjNew();
+    if(k==='r'&&!$b('bjSurrender').disabled)bjSurrender();
+    if(k==='p'&&!$b('bjSplit').disabled)bjSplit();
+  });
+
+  /* Boot */
+  const _bjBoot=setInterval(()=>{if(me()&&shoe.length===0){clearInterval(_bjBoot);freshShoe();}},200);
+})();
+
 </script>
 <script src="js/games.js"></script>
 </body>
