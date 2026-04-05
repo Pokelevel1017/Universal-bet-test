@@ -1443,7 +1443,7 @@ img { display:block }
 
 /* Stats grid — 3 cols */
 .prf-g {
-  display:grid; grid-template-columns:1fr 1fr 1fr;
+  display:grid; grid-template-columns:1fr 1fr;
   gap:8px; margin-bottom:16px;
 }
 .prf-stat {
@@ -2336,9 +2336,7 @@ img { display:block }
               <div class="adm-section">
                 <div class="adm-stats-grid" id="admStatsGrid">
                   <div class="adm-stat-card"><div class="adm-stat-ico">👥</div><div class="adm-stat-val" id="asStat-users">—</div><div class="adm-stat-lbl">Total Users</div></div>
-                  <div class="adm-stat-card"><div class="adm-stat-ico">🎮</div><div class="adm-stat-val" id="asStat-bets">—</div><div class="adm-stat-lbl">Total Bets</div></div>
                   <div class="adm-stat-card"><div class="adm-stat-ico">💵</div><div class="adm-stat-val" id="asStat-money">—</div><div class="adm-stat-lbl">Money in Circulation</div></div>
-                  <div class="adm-stat-card"><div class="adm-stat-ico">🟢</div><div class="adm-stat-val" id="asStat-live">—</div><div class="adm-stat-lbl">Active Now</div></div>
                 </div>
                 <div class="adm-hr"></div>
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -2640,10 +2638,7 @@ img { display:block }
           <div class="prf-sv" id="prfRank">—</div>
           <div class="prf-sl">Global Rank</div>
         </div>
-        <div class="prf-stat">
-          <div class="prf-sv" id="prfBets">—</div>
-          <div class="prf-sl">Total Bets</div>
-        </div>
+
       </div>
 
       <!-- Joined badge -->
@@ -2848,7 +2843,7 @@ const SRC_ICO={Bonus:'⚡',Giveaway:'🎁',Blackjack:'🃏',Crash:'🚀',Dice:'�
 function purgeFeed(){const cut=Date.now()-FEED_TTL;db.ref('recent_wins').orderByChild('ts').endAt(cut).once('value',snap=>{if(!snap.exists())return;const u={};snap.forEach(c=>{u[c.key]=null;});db.ref('recent_wins').update(u);});}
 function initFeed(){
   purgeFeed();setInterval(purgeFeed,FEED_TTL);
-  db.ref('recent_wins').orderByChild('ts').limitToLast(20).on('value',snap=>{
+  db.ref('recent_wins').orderByChild('ts').limitToLast(10).on('value',snap=>{
     const rows=[];snap.forEach(c=>{const v=c.val();if(v&&v.amount>0)rows.push(v);});rows.reverse();
     const el=$('feedBody');if(!el)return;
     if(!rows.length){el.innerHTML='<div class="wins-empty"><span class="wins-empty-ico">🏆</span>No wins yet — start playing!</div>';return;}
@@ -3360,7 +3355,6 @@ function openProfile(name){
   setAva($('prfAva'),null,'?');
   $('prfBal').textContent='…';
   $('prfRank').textContent='…';
-  $('prfBets').textContent='…';
   $('prfJoined').style.display='none';
   $('prfEditBtn').classList.add('hidden');
   $('prfPicker').classList.add('hidden');
@@ -3377,7 +3371,6 @@ function openProfile(name){
     setAva($('prfAva'),u.avatar||null,(u.name||'?').charAt(0).toUpperCase());
     $('prfName').textContent=u.name||'—';
     $('prfBal').textContent='$'+f$(u.balance||0);
-    $('prfBets').textContent=(u.totalBets||0).toLocaleString();
     if(u.profileTitle)$('prfTitle').textContent=u.profileTitle;
     if(me()&&u.name===me().name)$('prfEditBtn').classList.remove('hidden');
     if(u.createdAt){
@@ -3895,28 +3888,19 @@ function loadAdmStats(){
   db.ref('users').once('value',snap=>{
     const users=[];snap.forEach(c=>{const v=c.val();if(v&&v.name)users.push(v);});
     const total=users.length;
-    const totalBets=users.reduce((s,u)=>s+(u.totalBets||0),0);
     const circulation=users.reduce((s,u)=>s+(u.balance||0),0);
 
     // Stats cards
     $('asStat-users').textContent=total;
-    $('asStat-bets').textContent=totalBets.toLocaleString();
     $('asStat-money').textContent='$'+f$(circulation);
 
-    // Live count via presence (approximate: users active in last 5 min)
-    db.ref('presence').orderByChild('ts').startAt(Date.now()-300000).once('value',ps=>{
-      let live=0;ps.forEach(()=>live++);
-      $('asStat-live').textContent=live||'—';
-    });
-
     // Top 5 most active (by totalBets)
-    const byBets=[...users].sort((a,b)=>(b.totalBets||0)-(a.totalBets||0)).slice(0,5);
+    const byBets=[...users].sort((a,b)=>(b.balance||0)-(a.balance||0)).slice(0,5);
     $('admTopPlayers').innerHTML=byBets.length?byBets.map((u,i)=>`
       <div class="adm-player-row">
         <div class="adm-player-rank">#${i+1}</div>
         <div class="adm-player-ava">${esc(u.name.charAt(0).toUpperCase())}</div>
         <div class="adm-player-name" onclick="openProfile('${esc(u.name)}')">${esc(u.name)}</div>
-        <div class="adm-player-val">${(u.totalBets||0).toLocaleString()} bets</div>
         <div class="adm-player-val hi">$${f$(u.balance)}</div>
       </div>`).join(''):'<div style="color:var(--lo);font-size:12px">No data yet</div>';
 
