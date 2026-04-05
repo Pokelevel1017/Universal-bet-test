@@ -1947,6 +1947,22 @@ img { display:block }
 #bjSync{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);border-radius:var(--rx);padding:7px 16px;font-size:11px;color:var(--up);display:none;z-index:200;white-space:nowrap}
 
 /* Mobile */
+/* Fun mode toggle */
+.bj-mode-toggle{display:flex;align-items:center;gap:8px;background:var(--s3);border:1px solid var(--line);border-radius:var(--rx);padding:8px 12px;margin-bottom:12px;cursor:pointer;transition:.15s;user-select:none}
+.bj-mode-toggle:hover{border-color:var(--line2)}
+.bj-mode-ico{font-size:15px;flex-shrink:0}
+.bj-mode-info{flex:1;min-width:0}
+.bj-mode-title{font-size:12px;font-weight:700;color:var(--hi)}
+.bj-mode-sub{font-size:10px;color:var(--lo);margin-top:1px}
+.bj-mode-pill{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:20px;flex-shrink:0;transition:.15s}
+.bj-mode-pill.real{background:rgba(61,214,140,.12);color:var(--up);border:1px solid rgba(61,214,140,.25)}
+.bj-mode-pill.fun{background:rgba(240,160,48,.12);color:var(--gold);border:1px solid rgba(240,160,48,.25)}
+.bj-fun-bal{display:none;align-items:center;justify-content:space-between;background:rgba(240,160,48,.06);border:1px solid rgba(240,160,48,.18);border-radius:var(--rx);padding:8px 12px;margin-bottom:10px}
+.bj-fun-bal.show{display:flex}
+.bj-fun-bal-lbl{font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.08em}
+.bj-fun-bal-val{font-family:var(--fh);font-size:16px;font-weight:900;color:var(--gold)}
+.bj-fun-reset{font-size:10px;font-weight:700;color:var(--lo);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.bj-fun-reset:hover{color:var(--gold)}
 @media(max-width:900px){.bj-controls{width:100%;border-left:none;border-top:1px solid var(--line)}}
 @media(max-width:768px){.bj-page{flex-direction:column;overflow:visible}.bj-main{overflow:visible;padding:14px 14px 20px}.bj-controls{padding:14px 14px 80px}}
 @media(max-width:500px){.bj-card{width:56px;height:84px;padding:5px 6px}.bj-card-top,.bj-card-bot{font-size:13px}.bj-card-center{font-size:20px}}
@@ -2024,6 +2040,24 @@ img { display:block }
 
           <!-- Control panel -->
           <aside class="bj-controls">
+
+            <!-- Mode toggle -->
+            <div class="bj-mode-toggle" onclick="bjToggleMode()">
+              <span class="bj-mode-ico" id="bj-mode-ico">🎮</span>
+              <div class="bj-mode-info">
+                <div class="bj-mode-title" id="bj-mode-title">Real Play</div>
+                <div class="bj-mode-sub" id="bj-mode-sub">Tap to switch to Fun Play</div>
+              </div>
+              <span class="bj-mode-pill real" id="bj-mode-pill">Real</span>
+            </div>
+            <!-- Fun balance display -->
+            <div class="bj-fun-bal" id="bj-fun-bal">
+              <div>
+                <div class="bj-fun-bal-lbl">Fun Balance</div>
+                <div class="bj-fun-bal-val" id="bj-fun-bal-val">$1,000.00</div>
+              </div>
+              <span class="bj-fun-reset" onclick="bjResetFun()">Reset</span>
+            </div>
 
             <div class="bj-msg" id="bj-msg">Place a bet and deal to start.</div>
 
@@ -3636,6 +3670,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
   let shoe=[],playerHand=[],dealerHand=[],splitHand=[];
   let activeHand='player',bet=0,splitBet=0,insuranceBet=0,gamePhase='bet';
   let _syncT=null;
+  let funMode=false,funBalance=1000;
 
   const NUM_DECKS=6;
   const RESHUFFLE_AT=Math.floor(52*NUM_DECKS*.25);
@@ -3708,6 +3743,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
     if(shoe.length<=RESHUFFLE_AT)freshShoe();
     splitHand=[];splitBet=0;insuranceBet=0;activeHand='player';
     hideResult();
+    // Deduct bet immediately — update local cache too so next hand sees correct balance
+    if(_u)_u.balance=Math.max(0,clean((_u.balance||0)-bet));
+    commitBalance(-bet);
+    const nb=$('navBal');if(nb)nb.textContent=f$(_u?.balance||0);
     playerHand=[drawCard(),drawCard()];
     dealerHand=[drawCard(),drawCard()];
     gamePhase='player';
@@ -3820,29 +3859,32 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
     let insDelta=0;
     if(insuranceBet>0)insDelta=dBJ?clean(insuranceBet*2):-insuranceBet;
 
+    // Bet already deducted at deal time.
+    // payout = what gets RETURNED to player (0 for loss, bet back for push, bet*2 for win, bet*2.5 for BJ)
     const pBJ=isBJ(playerHand),pBust=isBust(playerHand),pTotal=handTotal(playerHand);
-    let pDelta=0,pResult='';
-    if(pBust){pDelta=-bet;pResult='BUST';}
-    else if(pBJ&&dBJ){pDelta=0;pResult='PUSH';}
-    else if(pBJ&&!dBJ){pDelta=clean(bet*1.5);pResult='BLACKJACK';}
-    else if(!pBJ&&dBJ){pDelta=-bet;pResult='LOSE';}
-    else if(dBust){pDelta=bet;pResult='WIN';}
-    else if(pTotal>dTotal){pDelta=bet;pResult='WIN';}
-    else if(pTotal===dTotal){pDelta=0;pResult='PUSH';}
-    else{pDelta=-bet;pResult='LOSE';}
+    let pPayout=0,pResult='',pProfit=0;
+    if(pBust){pPayout=0;pResult='BUST';pProfit=-bet;}
+    else if(pBJ&&dBJ){pPayout=bet;pResult='PUSH';pProfit=0;}
+    else if(pBJ&&!dBJ){pPayout=clean(bet*2.5);pResult='BLACKJACK';pProfit=clean(bet*1.5);}
+    else if(!pBJ&&dBJ){pPayout=0;pResult='LOSE';pProfit=-bet;}
+    else if(dBust){pPayout=bet*2;pResult='WIN';pProfit=bet;}
+    else if(pTotal>dTotal){pPayout=bet*2;pResult='WIN';pProfit=bet;}
+    else if(pTotal===dTotal){pPayout=bet;pResult='PUSH';pProfit=0;}
+    else{pPayout=0;pResult='LOSE';pProfit=-bet;}
 
-    let sDelta=0;
+    // Split hand payout (split bet also deducted when doDouble/split deducts it)
+    let sPayout=0,sProfit=0;
     if(splitHand.length>0){
       const sBust=isBust(splitHand),sTotal=handTotal(splitHand);
-      if(sBust)sDelta=-splitBet;
-      else if(dBJ)sDelta=-splitBet;
-      else if(dBust)sDelta=splitBet;
-      else if(sTotal>dTotal)sDelta=splitBet;
-      else if(sTotal===dTotal)sDelta=0;
-      else sDelta=-splitBet;
+      if(sBust){sPayout=0;sProfit=-splitBet;}
+      else if(dBJ){sPayout=0;sProfit=-splitBet;}
+      else if(dBust){sPayout=splitBet*2;sProfit=splitBet;}
+      else if(sTotal>dTotal){sPayout=splitBet*2;sProfit=splitBet;}
+      else if(sTotal===dTotal){sPayout=splitBet;sProfit=0;}
+      else{sPayout=0;sProfit=-splitBet;}
     }
 
-    const totalDelta=clean(pDelta+sDelta+insDelta);
+    const totalPayout=clean(pPayout+sPayout+(insDelta>0?insDelta:0));
     let mainTxt='',subParts=[],type='';
     if(pResult==='BLACKJACK'){mainTxt='BLACKJACK! 🃏';type='bj';}
     else if(pResult==='WIN'){mainTxt='YOU WIN! 🎉';type='win';}
@@ -3850,24 +3892,26 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
     else if(pResult==='PUSH'){mainTxt='PUSH — TIE';type='push';}
     else{mainTxt='DEALER WINS';type='lose';}
 
-    if(pResult==='BLACKJACK')subParts.push('BJ pays +$'+fmt(pDelta));
-    else if(pResult==='WIN')subParts.push('+$'+fmt(pDelta));
+    if(pResult==='BLACKJACK')subParts.push('+$'+fmt(pProfit));
+    else if(pResult==='WIN')subParts.push('+$'+fmt(pProfit));
     else if(pResult==='PUSH')subParts.push('Bet returned');
-    else subParts.push('-$'+fmt(Math.abs(pDelta)));
-    if(splitHand.length>0)subParts.push('Split: '+(sDelta>=0?'+':'-')+'$'+fmt(Math.abs(sDelta)));
+    else subParts.push('-$'+fmt(bet));
+    if(splitHand.length>0)subParts.push('Split: '+(sProfit>=0?'+':'-')+'$'+fmt(Math.abs(sProfit)));
     if(insuranceBet>0)subParts.push('Insurance: '+(insDelta>=0?'+':'-')+'$'+fmt(Math.abs(insDelta)));
     const subTxt=subParts.join(' · ');
 
     setPhase('done');showResult(mainTxt,subTxt,type);setMsg(subTxt);
-    commitBalance(totalDelta);
+    // Pay out winnings (losses already taken, just return what player wins back)
+    if(totalPayout>0)commitBalance(totalPayout);
   }
 
   function endRound(o){
     if(o==='bust'){
-      const lost=clean(bet+(splitBet||0));
+      // Bet already deducted at deal — nothing more to take
+      const totalBet=clean(bet+(splitBet||0));
       gamePhase='done';setPhase('done');
-      showResult('BUST','Lost $'+fmt(lost),'lose');setMsg('Bust! Lost $'+fmt(lost)+'.');
-      commitBalance(-lost);
+      showResult('BUST','-$'+fmt(totalBet),'lose');setMsg('Bust! Lost $'+fmt(totalBet)+'.');
+      // No commitBalance needed — money already gone
     }
   }
 
@@ -3961,6 +4005,12 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
 
   /* ── FIREBASE BALANCE ── */
   function commitBalance(delta){
+    if(funMode){
+      funBalance=Math.max(0,clean(funBalance+delta));
+      _updFunBal();
+      if(funBalance<=0)setMsg('Fun balance empty! Click Reset to top up.');
+      return;
+    }
     if(!me())return;
     db.ref('users/'+me().name).transaction(u=>{
       if(!u)return;
@@ -3990,6 +4040,78 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
     if(k==='r'&&!$b('bjSurrender').disabled)bjSurrender();
     if(k==='p'&&!$b('bjSplit').disabled)bjSplit();
   });
+
+  /* ── FUN MODE ── */
+  window.bjToggleMode=function(){
+    if(gamePhase==='play'){setMsg('Finish the current hand first.');return;}
+    funMode=!funMode;funBalance=1000;bjNew();
+    const pill=$b('bj-mode-pill'),title=$b('bj-mode-title'),sub=$b('bj-mode-sub');
+    const ico=$b('bj-mode-ico'),fb=$b('bj-fun-bal');
+    if(funMode){
+      pill.textContent='Fun';pill.className='bj-mode-pill fun';
+      title.textContent='Fun Play';sub.textContent='Tap to switch to Real Play';
+      ico.textContent='🎲';if(fb)fb.classList.add('show');
+      _updFunBal();$b('bjDeal').disabled=bet<=0||bet>funBalance;setMsg('Fun mode — no real money at stake!');
+    }else{
+      pill.textContent='Real';pill.className='bj-mode-pill real';
+      title.textContent='Real Play';sub.textContent='Tap to switch to Fun Play';
+      ico.textContent='🎮';if(fb)fb.classList.remove('show');
+      setMsg('Place a bet and deal to start.');
+    }
+    syncBetUI();
+  };
+
+  window.bjResetFun=function(){
+    funBalance=1000;_updFunBal();setMsg('Fun balance reset to $1,000!');
+  };
+
+  function _updFunBal(){
+    const el=$b('bj-fun-bal-val');if(el)el.textContent='$'+fmt(funBalance);
+  }
+
+  function _funMaxBal(){return funMode?funBalance:bal();}
+
+
+  // Patch bjSetBet
+  const _origSetBet=window.bjSetBet;
+  window.bjSetBet=function(v){
+    if(gamePhase==='play')return;
+    const mx=_funMaxBal();
+    if(v>mx){showToast('Insufficient '+(funMode?'fun ':'')+'balance','info');return;}
+    bet=clean(Math.min(Math.max(0,v),mx));
+    const inp=$b('bj-betinp');if(inp)inp.value=bet>0?bet:'';
+    document.querySelectorAll('.bj-qchip').forEach(c=>c.classList.remove('active'));
+    const vals=[1,5,25,100,500,1000];const idx=vals.indexOf(v);
+    const chips=[...document.querySelectorAll('.bj-qchip')];
+    if(idx>=0&&chips[idx])chips[idx].classList.add('active');
+    $b('bjDeal').disabled=!(bet>0&&bet<=mx);
+  };
+
+  // Patch bjOnBetInput
+  window.bjOnBetInput=function(){
+    const raw=parseFloat($b('bj-betinp').value),mx=_funMaxBal();
+    bet=isNaN(raw)||raw<0?0:clean(Math.min(raw,mx));
+    $b('bjDeal').disabled=!(bet>0&&bet<=mx);
+  };
+
+  // Patch bjDeal for fun mode
+  const _origDeal=window.bjDeal;
+  window.bjDeal=function(){
+    if(!funMode){_origDeal();return;}
+    if(bet<=0){setMsg('Place a bet first.');return;}
+    if(bet>funBalance){setMsg('Not enough fun balance.');return;}
+    if(shoe.length<=RESHUFFLE_AT)freshShoe();
+    splitHand=[];splitBet=0;insuranceBet=0;activeHand='player';hideResult();
+    funBalance=clean(funBalance-bet);_updFunBal();
+    playerHand=[drawCard(),drawCard()];dealerHand=[drawCard(),drawCard()];
+    gamePhase='player';
+    renderCards(dealerHand,'bj-dcards',true);setHVal('bj-dval',dealerHand,true);
+    renderCards(playerHand,'bj-pcards',false);setHVal('bj-pval',playerHand,false);
+    setPhase('player');
+    if(dealerHand[0].rank==='A')$b('bjInsure').disabled=false;
+    if(isBJ(playerHand)){setMsg('Blackjack! Dealer reveals…');setTimeout(()=>dealerTurn(),400);return;}
+    setMsg('Hit, Stand, Double, Split, or Surrender.');
+  };
 
   /* Boot */
   const _bjBoot=setInterval(()=>{if(me()&&shoe.length===0){clearInterval(_bjBoot);freshShoe();}},200);
