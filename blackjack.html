@@ -1444,7 +1444,7 @@ img { display:block }
 
 /* Stats grid — 3 cols */
 .prf-g {
-  display:grid; grid-template-columns:1fr 1fr 1fr;
+  display:grid; grid-template-columns:1fr 1fr;
   gap:8px; margin-bottom:16px;
 }
 .prf-stat {
@@ -2050,10 +2050,7 @@ img { display:block }
                 <div class="bj-mod-btn" onclick="bjModBet(2)">2×</div>
                 <div class="bj-mod-btn" onclick="bjClearBet()">Clear</div>
               </div>
-              <div class="bj-bet-box">
-                <span class="bj-bet-box-lbl">Current Bet</span>
-                <span class="bj-bet-box-val" id="bj-betdisp">$0.00</span>
-              </div>
+
             </div>
 
             <div style="height:1px;background:var(--line)"></div>
@@ -2217,10 +2214,7 @@ img { display:block }
           <div class="prf-sv" id="prfRank">—</div>
           <div class="prf-sl">Global Rank</div>
         </div>
-        <div class="prf-stat">
-          <div class="prf-sv" id="prfBets">—</div>
-          <div class="prf-sl">Total Bets</div>
-        </div>
+
       </div>
 
       <!-- Joined badge -->
@@ -2445,7 +2439,7 @@ const SRC_ICO={Bonus:'⚡',Giveaway:'🎁',Blackjack:'🃏',Crash:'🚀',Dice:'�
 function purgeFeed(){const cut=Date.now()-FEED_TTL;db.ref('recent_wins').orderByChild('ts').endAt(cut).once('value',snap=>{if(!snap.exists())return;const u={};snap.forEach(c=>{u[c.key]=null;});db.ref('recent_wins').update(u);});}
 function initFeed(){
   purgeFeed();setInterval(purgeFeed,FEED_TTL);
-  db.ref('recent_wins').orderByChild('ts').limitToLast(20).on('value',snap=>{
+  db.ref('recent_wins').orderByChild('ts').limitToLast(10).on('value',snap=>{
     const rows=[];snap.forEach(c=>{const v=c.val();if(v&&v.amount>0)rows.push(v);});rows.reverse();
     const el=$('feedBody');if(!el)return;
     if(!rows.length){el.innerHTML='<div class="wins-empty"><span class="wins-empty-ico">🏆</span>No wins yet — start playing!</div>';return;}
@@ -2957,7 +2951,6 @@ function openProfile(name){
   setAva($('prfAva'),null,'?');
   $('prfBal').textContent='…';
   $('prfRank').textContent='…';
-  $('prfBets').textContent='…';
   $('prfJoined').style.display='none';
   $('prfEditBtn').classList.add('hidden');
   $('prfPicker').classList.add('hidden');
@@ -2974,7 +2967,6 @@ function openProfile(name){
     setAva($('prfAva'),u.avatar||null,(u.name||'?').charAt(0).toUpperCase());
     $('prfName').textContent=u.name||'—';
     $('prfBal').textContent='$'+f$(u.balance||0);
-    $('prfBets').textContent=(u.totalBets||0).toLocaleString();
     if(u.profileTitle)$('prfTitle').textContent=u.profileTitle;
     if(me()&&u.name===me().name)$('prfEditBtn').classList.remove('hidden');
     if(u.createdAt){
@@ -3707,7 +3699,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeProfile();});
     bet=0;const inp=$b('bj-betinp');if(inp)inp.value='';
     updateBetDisp();$b('bjDeal').disabled=true;
   };
-  function updateBetDisp(){$b('bj-betdisp').textContent='$'+fmt(bet);}
+  function updateBetDisp(){}
 
   /* ── DEAL ── */
   window.bjDeal=function(){
