@@ -1810,6 +1810,50 @@ img { display:block }
 
 
 /* Shell and nav display handled by JS correctly */
+
+/* ═══ SEASON ═══════════════════════════════════════════ */
+.season-banner{
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(135deg,rgba(240,160,48,.06),rgba(192,132,252,.06));
+  border:1px solid rgba(240,160,48,.2);border-radius:var(--ry);
+  padding:14px 20px;margin-bottom:20px;gap:16px;flex-wrap:wrap;
+}
+.season-banner-left{display:flex;align-items:center;gap:12px}
+.season-ico{font-size:2rem;flex-shrink:0}
+.season-info{}
+.season-name{font-family:var(--fh);font-size:1rem;font-weight:900;color:var(--gold);letter-spacing:-.01em}
+.season-sub{font-size:11px;color:var(--lo);margin-top:2px}
+.season-countdown{text-align:right}
+.season-cd-val{font-family:var(--fh);font-size:1.4rem;font-weight:900;color:var(--hi);letter-spacing:-.5px}
+.season-cd-lbl{font-size:9px;font-weight:700;color:var(--lo);text-transform:uppercase;letter-spacing:.1em}
+
+.season-prizes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
+.season-prize{border-radius:var(--ry);padding:14px;text-align:center;border:1px solid var(--line);background:var(--s2)}
+.season-prize.gold{border-color:rgba(240,160,48,.35);background:rgba(240,160,48,.05)}
+.season-prize.silver{border-color:rgba(160,160,180,.3);background:rgba(160,160,180,.04)}
+.season-prize.bronze{border-color:rgba(180,100,40,.3);background:rgba(180,100,40,.04)}
+.season-prize-medal{font-size:1.8rem;margin-bottom:6px}
+.season-prize-place{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--lo);margin-bottom:4px}
+.season-prize-bal{font-family:var(--fh);font-size:1.1rem;font-weight:900;margin-bottom:4px}
+.season-prize.gold .season-prize-bal{color:var(--gold)}
+.season-prize.silver .season-prize-bal{color:#c0c0cc}
+.season-prize.bronze .season-prize-bal{color:#b46428}
+.season-prize-trophy{font-size:10px;color:var(--lo);line-height:1.4}
+
+.season-winners{background:var(--s2);border:1px solid var(--line);border-radius:var(--ry);padding:16px;margin-bottom:20px}
+.season-winners-title{font-size:11px;font-weight:800;color:var(--lo);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+.season-winner-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.season-winner-row:last-child{border-bottom:none}
+.season-winner-medal{font-size:1.2rem;width:28px;text-align:center;flex-shrink:0}
+.season-winner-name{flex:1;font-weight:700;font-size:13px;color:var(--hi)}
+.season-winner-bal{font-family:var(--fh);font-size:12px;font-weight:800;color:var(--gold)}
+
+/* Trophy in inventory */
+.inv-trophy{background:linear-gradient(135deg,#1a1200,#261a00);border:1px solid rgba(240,160,48,.35);border-radius:var(--ry);padding:16px;display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.inv-trophy-ico{font-size:2.5rem;flex-shrink:0}
+.inv-trophy-info{}
+.inv-trophy-name{font-family:var(--fh);font-size:13px;font-weight:800;color:var(--gold)}
+.inv-trophy-sub{font-size:11px;color:var(--lo);margin-top:3px}
 </style>
 </head>
 <body>
@@ -2036,6 +2080,9 @@ img { display:block }
             </div>
           </div>
         </div>
+
+        <!-- Season Widget -->
+        <div id="homeSeasonWidget" style="margin-bottom:24px"></div>
 
         <div class="sec-h">Announcements</div>
         <div class="ann-grid">
@@ -2765,7 +2812,7 @@ function doRegister(){
 function finalizeLogin(user){initSiteConfig();
   _u=user;localStorage.setItem('ub_session',JSON.stringify({name:user.name,password:user.password}));
   $('authWrap').style.display='none';$('nav').style.display='flex';$('shell').style.display='flex';
-  startSync();initFeed();initChat();initGiveaway();initNotifs();initAdminAlerts();startShopCd();applyTheme();updateNavAva();initMobileNav();hideLoader();const _hash=location.hash.replace('#','');if(_hash&&document.getElementById('pg-'+_hash))goTab(_hash);history.replaceState(null,'',location.pathname);
+  startSync();initFeed();initChat();initGiveaway();initNotifs();initAdminAlerts();startShopCd();applyTheme();updateNavAva();initMobileNav();hideLoader();initSeasons();const _hash=location.hash.replace('#','');if(_hash&&document.getElementById('pg-'+_hash))goTab(_hash);history.replaceState(null,'',location.pathname);
 }
 
 /* ══════════════════════════════════════
@@ -3448,6 +3495,235 @@ function initOgFilters(){
   });
 }
 
+
+/* ══════════════════════════════════════
+   SEASONS
+   2-week seasons. On end: snapshot top 3,
+   give trophies + bonus balance, reset all to $50.
+══════════════════════════════════════ */
+const SEASON_DURATION = 14 * 24 * 60 * 60 * 1000; // 14 days in ms
+const SEASON_PRIZES = [
+  { place:1, startBal:500, trophy:'🥇 Season Champion Trophy', trophyId:'trophy_champion' },
+  { place:2, startBal:200, trophy:'🥈 Season Runner-Up Trophy', trophyId:'trophy_runner_up' },
+  { place:3, startBal:100, trophy:'🥉 Season Third Place Trophy', trophyId:'trophy_third' },
+];
+const DEFAULT_BAL = 50;
+
+let _seasonData = null, _seasonCdT = null;
+
+function initSeasons() {
+  db.ref('season').on('value', snap => {
+    if (!snap.exists()) {
+      // First ever season — create it
+      const s = { num:1, startTs:Date.now(), endTs:Date.now()+SEASON_DURATION, winners:null };
+      db.ref('season').set(s);
+      _seasonData = s;
+    } else {
+      _seasonData = snap.val();
+      checkSeasonEnd();
+    }
+    startSeasonCountdown();
+    renderSeasonTab();
+  });
+}
+
+function checkSeasonEnd() {
+  if (!_seasonData || !me()) return;
+  if (Date.now() < _seasonData.endTs) return;
+  // Season has ended — run end sequence (first client to detect triggers it)
+  db.ref('season_end_lock/' + _seasonData.num).transaction(v => {
+    if (v !== null) return; // already handled
+    return { triggeredBy: me().name, ts: Date.now() };
+  }, (err, committed) => {
+    if (!committed) {
+      // Another client handled it — just reset our own balance if needed
+      resetOwnBalance();
+      return;
+    }
+    // We're the trigger client — snapshot leaderboard and process end
+    processSeasonEnd();
+  });
+}
+
+async function processSeasonEnd() {
+  if (!_seasonData) return;
+  // 1. Snapshot leaderboard
+  const snap = await db.ref('users').orderByChild('balance').limitToLast(20).once('value');
+  const all = [];
+  snap.forEach(c => { const u = c.val(); if (u && u.name) all.push({ name: u.name, balance: u.balance || 0 }); });
+  all.sort((a, b) => b.balance - a.balance);
+  const top3 = all.slice(0, 3);
+
+  // 2. Award prizes to top 3
+  for (let i = 0; i < top3.length; i++) {
+    const prize = SEASON_PRIZES[i];
+    const winner = top3[i];
+    await db.ref('users/' + winner.name).transaction(u => {
+      if (!u) return u;
+      u.balance = prize.startBal;
+      if (!u.trophies) u.trophies = {};
+      const key = prize.trophyId + '_s' + _seasonData.num;
+      u.trophies[key] = {
+        id: key, name: prize.trophy,
+        season: _seasonData.num, ts: Date.now(), place: prize.place
+      };
+      return u;
+    });
+  }
+
+  // 3. Reset everyone else to $50
+  const winnerNames = new Set(top3.map(w => w.name));
+  const allSnap = await db.ref('users').once('value');
+  const updates = {};
+  allSnap.forEach(c => {
+    const u = c.val();
+    if (u && u.name && !winnerNames.has(u.name)) {
+      updates['users/' + u.name + '/balance'] = DEFAULT_BAL;
+    }
+  });
+  if (Object.keys(updates).length) await db.ref().update(updates);
+
+  // 4. Save winners and start new season
+  const newSeason = {
+    num: (_seasonData.num || 1) + 1,
+    startTs: Date.now(),
+    endTs: Date.now() + SEASON_DURATION,
+    winners: null
+  };
+  await db.ref('season').set(newSeason);
+  await db.ref('season_history/' + _seasonData.num).set({
+    num: _seasonData.num,
+    endTs: Date.now(),
+    top3: top3.slice(0,3)
+  });
+
+  showToast('🏆 Season ' + _seasonData.num + ' ended! New season started.', 'win');
+}
+
+function resetOwnBalance() {
+  // If we haven't been reset yet (balance > DEFAULT_BAL and no trophy awarded), reset
+  // Winners are handled separately, so skip if we have a trophy for this season
+  if (!me()) return;
+  const hasTrophyThisSeason = me().trophies &&
+    Object.keys(me().trophies).some(k => k.endsWith('_s' + (_seasonData?.num || 0)));
+  if (hasTrophyThisSeason) return;
+  db.ref('users/' + me().name + '/balance').set(DEFAULT_BAL);
+}
+
+function startSeasonCountdown() {
+  clearInterval(_seasonCdT);
+  _seasonCdT = setInterval(() => {
+    renderSeasonCountdown();
+  }, 1000);
+  renderSeasonCountdown();
+}
+
+function renderSeasonCountdown() {
+  const el = $('seasonCountdown');
+  if (!el || !_seasonData) return;
+  const rem = Math.max(0, _seasonData.endTs - Date.now());
+  const d = Math.floor(rem / 86400000);
+  const h = Math.floor((rem % 86400000) / 3600000);
+  const m = Math.floor((rem % 3600000) / 60000);
+  const s = Math.floor((rem % 60000) / 1000);
+  el.textContent = d + 'd ' + String(h).padStart(2,'0') + 'h ' + String(m).padStart(2,'0') + 'm ' + String(s).padStart(2,'0') + 's';
+}
+
+let _seasonOpen = false;
+function toggleSeason() {
+  _seasonOpen = !_seasonOpen;
+  const body = $('seasonBody');
+  const arrow = $('seasonArrow');
+  if (!body) return;
+  body.style.display = _seasonOpen ? 'block' : 'none';
+  if (arrow) arrow.style.transform = _seasonOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+window.toggleSeason = toggleSeason;
+
+function renderSeasonTab() {
+  const el = $('homeSeasonWidget');
+  if (!el) return;
+  const s = _seasonData;
+  if (!s) return;
+  const rem = Math.max(0, s.endTs - Date.now());
+  const pct = Math.max(0, Math.min(100, 100 - (rem / SEASON_DURATION * 100)));
+
+  el.innerHTML = `
+    <div style="border:1px solid rgba(240,160,48,.2);border-radius:var(--ry);overflow:hidden;margin-bottom:0">
+
+      <!-- Collapsed header — always visible, clickable -->
+      <div onclick="toggleSeason()" style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background='transparent'">
+        <span style="font-size:1.6rem;flex-shrink:0">🏆</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--fh);font-size:.95rem;font-weight:900;color:var(--gold)">Season ${s.num} <span style="font-size:.75rem;font-weight:700;color:var(--lo);margin-left:4px">— ends in <span id="seasonCountdown" style="color:var(--hi)">…</span></span></div>
+          <div style="font-size:11px;color:var(--lo);margin-top:1px">Every 2 weeks — top 3 win bonus balance &amp; exclusive trophies · Click to learn more</div>
+        </div>
+        <!-- Progress mini -->
+        <div style="flex-shrink:0;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <div style="width:80px;height:4px;background:var(--s3);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${pct.toFixed(1)}%;background:linear-gradient(90deg,var(--gold),#f97316);border-radius:4px"></div>
+          </div>
+          <span style="font-size:9px;color:var(--lo)">${pct.toFixed(0)}% through</span>
+        </div>
+        <svg id="seasonArrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--lo);flex-shrink:0;transition:transform .2s;transform:${_seasonOpen?'rotate(180deg)':'rotate(0deg)'}"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+
+      <!-- Expanded body -->
+      <div id="seasonBody" style="display:${_seasonOpen?'block':'none'}">
+        <div style="height:1px;background:rgba(240,160,48,.15);margin:0 18px"></div>
+
+        <!-- Why section -->
+        <div style="padding:16px 18px 0">
+          <div style="font-size:11px;font-weight:800;color:var(--lo);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px">What is a Season?</div>
+          <div style="font-size:12px;color:var(--mid);line-height:1.7;margin-bottom:12px">
+            UniversalBets runs on <strong style="color:var(--hi)">2-week seasons</strong>. Every season is a fresh competition — everyone starts with the same $50 balance and plays to climb as high as possible before the timer hits zero.<br><br>
+            At the end of each season, <strong style="color:var(--hi)">all balances reset to $50</strong> so the next season is a clean slate for everyone. The top 3 players at season end are rewarded with a head-start balance for next season and a <strong style="color:var(--gold)">permanent trophy</strong> that shows up in their inventory forever.
+          </div>
+          <div style="font-size:11px;font-weight:800;color:var(--lo);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;margin-top:16px">Why do we do this?</div>
+          <div style="font-size:12px;color:var(--mid);line-height:1.75;margin-bottom:16px">
+            Without resets, players who joined early would build up massive balances and dominate the leaderboard permanently — making it impossible for new or casual players to ever compete. Seasons fix that.<br><br>
+            Every 2 weeks the playing field levels out completely, so <strong style="color:var(--hi)">it doesn't matter when you joined or how long you've been here</strong> — everyone has the same shot. It keeps the economy balanced, the competition exciting, and most importantly it keeps the game <strong style="color:var(--hi)">fun for everyone</strong>, not just the people who got here first.
+          </div>
+        </div>
+
+        <!-- Prize cards -->
+        <div style="padding:0 18px 16px">
+          <div style="font-size:11px;font-weight:800;color:var(--lo);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px">Season End Prizes</div>
+          <div class="season-prizes" style="margin-bottom:0">
+            <div class="season-prize gold">
+              <div class="season-prize-medal">🥇</div>
+              <div class="season-prize-place">1st Place</div>
+              <div class="season-prize-bal">$500</div>
+              <div class="season-prize-trophy">Next season starting balance<br>+ 🏆 Season Champion Trophy</div>
+            </div>
+            <div class="season-prize silver">
+              <div class="season-prize-medal">🥈</div>
+              <div class="season-prize-place">2nd Place</div>
+              <div class="season-prize-bal">$200</div>
+              <div class="season-prize-trophy">Next season starting balance<br>+ 🥈 Runner-Up Trophy</div>
+            </div>
+            <div class="season-prize bronze">
+              <div class="season-prize-medal">🥉</div>
+              <div class="season-prize-place">3rd Place</div>
+              <div class="season-prize-bal">$100</div>
+              <div class="season-prize-trophy">Next season starting balance<br>+ 🥉 Third Place Trophy</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tips row -->
+        <div style="padding:14px 18px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.04);display:flex;gap:18px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--lo)">💡 <strong style="color:var(--mid)">Tip:</strong> Check the Leaderboard tab to see where you rank right now.</div>
+          <div style="font-size:11px;color:var(--lo)">🎒 <strong style="color:var(--mid)">Trophies</strong> are kept forever in your Inventory even after seasons end.</div>
+        </div>
+      </div>
+    </div>`;
+
+  renderSeasonCountdown();
+}
+
+
+
 /* ══════════════════════════════════════
    CHAT
 ══════════════════════════════════════ */
@@ -4012,7 +4288,21 @@ function renderInventory(){
   if(myT.length){const tiles=myT.map(item=>{const a=atT===item.id;const[c1,c2,c3]=item.prev;return`<div class="inv-tile${a?' eq':''}"><div class="inv-prv" style="padding:0;background:${c1}">${a?'<div class="inv-tag">Active</div>':''}<div style="width:100%;height:100%;display:flex"><div style="flex:1;background:${c1}"></div><div style="flex:1;background:${c2}"></div><div style="flex:1;background:${c3}"></div></div></div><div class="inv-bd"><div class="inv-cat" style="color:var(--blue)">Website Theme</div><div class="inv-name">${esc(item.n)}</div><div class="inv-acts">${a?`<button class="inv-btn un" onclick="invUn('websiteTheme')">Unequip</button>`:`<button class="inv-btn eq" onclick="iET('${item.id}')">Equip</button>`}</div></div></div>`;}).join('');out+=`<div class="inv-section"><div class="inv-section-hd"><span class="inv-section-ico">🌐</span><span class="inv-section-title">Website Themes</span></div><div class="inv-grid">${tiles}</div></div>`;}
   if(myP.length){const tiles=myP.map(item=>{const a=atC===item.id;return`<div class="inv-tile${a?' eq':''}"><div class="inv-prv" style="padding:0;background:${item.grad}">${a?'<div class="inv-tag">Active</div>':''}<div style="width:100%;height:100%;background:${item.grad};display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px"><div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--blue-dim));border:2px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff">${ic}</div></div></div><div class="inv-bd"><div class="inv-cat" style="color:#a78bfa">Profile Card</div><div class="inv-name">${esc(item.n)}</div><div class="inv-acts">${a?`<button class="inv-btn un" onclick="invUn('profileCardTheme')">Unequip</button>`:`<button class="inv-btn eq" onclick="iEC('${item.id}')">Equip</button>`}</div></div></div>`;}).join('');out+=`<div class="inv-section"><div class="inv-section-hd"><span class="inv-section-ico">🎨</span><span class="inv-section-title">Profile Card Colors</span></div><div class="inv-grid">${tiles}</div></div>`;}
   if(myTi.length){const tiles=myTi.map(item=>{const a=atTi===item.txt;return`<div class="inv-tile${a?' eq':''}"><div class="inv-prv" style="background:linear-gradient(135deg,#161006,#1e1a05)">${a?'<div class="inv-tag">Active</div>':''}<span style="font-size:13px;font-weight:800;font-style:italic;color:var(--gold);text-shadow:0 0 20px rgba(240,160,48,.3)">${esc(item.txt)}</span></div><div class="inv-bd"><div class="inv-cat" style="color:var(--gold)">Profile Title</div><div class="inv-name">${esc(item.n)}</div><div class="inv-acts">${a?`<button class="inv-btn un" onclick="invUn('profileTitle')">Unequip</button>`:`<button class="inv-btn eq" onclick="iETi('${item.id}')">Equip</button>`}</div></div></div>`;}).join('');out+=`<div class="inv-section"><div class="inv-section-hd"><span class="inv-section-ico">🏅</span><span class="inv-section-title">Profile Titles</span></div><div class="inv-grid">${tiles}</div></div>`;}
-  el.innerHTML=out;
+  // Trophies section
+  const trophies = me().trophies ? Object.values(me().trophies) : [];
+  if (trophies.length) {
+    trophies.sort((a,b) => (b.ts||0)-(a.ts||0));
+    const tiles = trophies.map(t => `
+      <div class="inv-trophy">
+        <div class="inv-trophy-ico">${t.name ? t.name.split(' ')[0] : '🏆'}</div>
+        <div class="inv-trophy-info">
+          <div class="inv-trophy-name">${esc(t.name||'Trophy')}</div>
+          <div class="inv-trophy-sub">Season ${t.season||'?'} · ${t.place===1?'1st':t.place===2?'2nd':'3rd'} Place · ${t.ts ? new Date(t.ts).toLocaleDateString() : ''}</div>
+        </div>
+      </div>`).join('');
+    out += `<div class="inv-section"><div class="inv-section-hd"><span class="inv-section-ico">🏆</span><span class="inv-section-title">Season Trophies</span></div>${tiles}</div>`;
+  }
+  el.innerHTML = out || '<div class="inv-empty"><span class="inv-empty-ico">🎒</span>Your inventory is empty.<br><span style="font-size:12px">Head to the Daily Shop to pick up items!</span></div>';
 }
 async function iET(id){await db.ref('users/'+me().name+'/websiteTheme').set(id);renderInventory();renderShop();}
 async function iEC(id){await db.ref('users/'+me().name+'/profileCardTheme').set(id);renderInventory();renderShop();}
