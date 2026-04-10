@@ -1696,113 +1696,140 @@ img { display:block }
 /* ════════════════════════════════════════════
    MOBILE RESPONSIVE
 ════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — tablet + mobile + landscape
+═══════════════════════════════════════════════ */
+
+/* Tablet (≤900px) — hide right panel */
+@media (max-width:900px) {
+  :root { --rp-w:0px; }
+  .rp { display:none !important; }
+}
+
+/* Mobile portrait + landscape (≤768px) */
 @media (max-width:768px) {
-  /* Variables */
-  :root { --sb-w:0px; --rp-w:0px; }
+  :root { --sb-w:0px; --rp-w:0px; --nav-h:52px; }
 
-  /* Hide sidebar and right panel on mobile */
-  .sidenav { display:none }
-  .rp { display:none }
-
-  /* Nav takes full width, add bottom nav */
-  #nav { padding:0 12px; }
-  .nav-wordmark { font-size:.85rem; }
-
-  /* Shell is just content */
+  /* Layout */
+  .sidenav { display:none !important; }
+  .rp { display:none !important; }
   .shell-body { flex-direction:column; }
-  .content { width:100%; }
+  .content { width:100%; min-width:0; padding-bottom:60px; }
 
-  /* Pages get less padding */
-  .page.on { padding:16px; }
+  /* Nav */
+  #nav { padding:0 14px; height:var(--nav-h); }
+  .nav-wordmark { font-size:.82rem; }
+  .nav-r { gap:8px; }
+  .nav-bal { font-size:13px; }
+  .nav-bonus-pill { display:none; }
 
-  /* Home banner stacks vertically */
-  .home-banner { flex-direction:column; gap:16px; padding:20px; }
-  .hb-right { padding-left:0; }
-  .hb-visual { width:100%; height:100px; }
-  .hb-left { max-width:100%; }
-
-  /* Announcements: 1 col */
-  .ann-grid { grid-template-columns:1fr; }
-
-  /* Originals: 2 col on mobile */
-  .og-grid { grid-template-columns:repeat(2,1fr); gap:8px; }
-  .og-live-cols, .og-live-row {
-    grid-template-columns: 1fr 80px 70px 70px;
-  }
-  .og-live-col-lbl:nth-child(4),
-  .og-live-row > .og-live-mult { display:none; }
-
-  /* Leaderboard: stack hero cards */
-  .lb-top3 { grid-template-columns:1fr; }
-  .lb-table-header, .lb-entry { grid-template-columns:44px 1fr 100px; }
-
-  /* Giveaway: single column */
-  .gw-layout { grid-template-columns:1fr; }
-  .gw-stats-row { grid-template-columns:repeat(3,1fr); }
-
-  /* Codes: single column */
-  .codes-layout { grid-template-columns:1fr; }
-
-  /* Shop: 2 cols */
-  .shop-grid { grid-template-columns:repeat(2,1fr); }
-
-  /* Inventory: 2 cols */
-  .inv-grid { grid-template-columns:repeat(2,1fr); }
-
-  /* Admin: stack */
-  .adm-page-grid { grid-template-columns:1fr; }
-  .adm-sidebar-card { position:static; }
-  .adm-stats-grid { grid-template-columns:repeat(2,1fr); }
-
-  /* Profile modal full screen */
-  .prf-sheet { max-width:100%; border-radius:var(--ry) var(--ry) 0 0; max-height:95vh; }
-  #prfModal { align-items:flex-end; padding:0; }
-
-  /* Wins cols: hide time */
-  .wins-cols, .win-row {
-    grid-template-columns: 1fr 100px 80px;
-  }
-  .wins-col-lbl:last-child, .win-row > .win-time { display:none; }
-
-  /* Leaderboard table: hide status */
-  .lb-table-header, .lb-entry { grid-template-columns:44px 1fr 100px; }
-
-  /* Mobile bottom navigation */
+  /* Mobile bottom nav — always shown */
   #mobileNav {
-    display:flex; position:fixed; bottom:0; left:0; right:0; z-index:500;
+    display:flex !important; position:fixed; bottom:0; left:0; right:0; z-index:600;
     background:var(--s2); border-top:1px solid var(--line);
-    height:56px; align-items:stretch;
+    height:58px; align-items:stretch;
+    /* safe area for notched phones */
+    padding-bottom:env(safe-area-inset-bottom);
   }
   .mn-btn {
     flex:1; display:flex; flex-direction:column; align-items:center;
     justify-content:center; gap:3px; cursor:pointer;
     color:var(--lo); background:none; border:none;
-    font-size:18px; transition:color .12s; font-family:var(--fn);
+    font-size:20px; transition:color .12s; font-family:var(--fn);
+    -webkit-tap-highlight-color:transparent;
+    min-width:0; padding:0 2px;
   }
-  .mn-btn span { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+  .mn-btn span { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .mn-btn.on { color:var(--blue); }
-  .mn-btn:hover { color:var(--mid); }
 
-  /* Add bottom padding so content isn't hidden by bottom nav */
-  .content { padding-bottom:56px; }
-  body { padding-bottom:0; }
+  /* Pages */
+  .page.on { padding:14px 12px; }
 
-  /* Auth on mobile */
-  .auth-shell { grid-template-columns:1fr; }
+  /* Home */
+  .home-banner { flex-direction:column; gap:14px; padding:16px; border-radius:var(--ry); }
+  .hb-right { padding-left:0; width:100%; }
+  .hb-visual { width:100%; height:120px; }
+  .hb-left { max-width:100%; }
+  .hb-title { font-size:1.4rem; }
+  .hb-sub { font-size:12px; }
+  .ann-grid { grid-template-columns:1fr; gap:10px; }
+  .season-prizes { grid-template-columns:1fr; gap:8px; }
+  .about-cols, .about-inner { grid-template-columns:1fr; gap:12px; }
+
+  /* Wins feed */
+  .wins-cols, .win-row { grid-template-columns:1fr 90px 72px; }
+  .wins-col-lbl:last-child, .win-row > .win-time { display:none; }
+
+  /* Originals */
+  .og-grid { grid-template-columns:repeat(2,1fr); gap:8px; }
+  .og-art { height:110px; }
+  .og-name { font-size:12px; }
+
+  /* Leaderboard */
+  .lb-top3 { grid-template-columns:repeat(3,1fr); gap:8px; }
+  .lb-hero-card { padding:14px 10px; }
+  .lb-table-header, .lb-entry { grid-template-columns:36px 1fr 90px; }
+  .lb-col-status, .lb-entry-status { display:none; }
+
+  /* Giveaway */
+  .gw-layout { grid-template-columns:1fr; }
+  .gw-stats-row { grid-template-columns:repeat(3,1fr); gap:8px; }
+
+  /* Codes */
+  .codes-layout { grid-template-columns:1fr; }
+
+  /* Shop */
+  .shop-grid { grid-template-columns:repeat(2,1fr); gap:10px; }
+
+  /* Inventory */
+  .inv-grid { grid-template-columns:repeat(2,1fr); gap:10px; }
+
+  /* Admin */
+  .adm-page-grid { grid-template-columns:1fr; }
+  .adm-sidebar-card { position:static; top:auto; }
+  .adm-stats-grid { grid-template-columns:repeat(2,1fr); }
+
+  /* Profile modal — slides up from bottom */
+  #prfModal { align-items:flex-end; padding:0; }
+  .prf-sheet { max-width:100%; border-radius:var(--ry) var(--ry) 0 0; max-height:92vh; }
+  .prf-g { grid-template-columns:repeat(2,1fr); }
+
+  /* Auth */
+  .auth-shell { grid-template-columns:1fr; height:auto; min-height:100vh; overflow-y:auto; }
   .auth-left { display:none; }
-  .auth-right { padding:28px 20px; }
+  .auth-right { padding:24px 20px 40px; }
 }
 
+/* Small phones (≤480px) */
 @media (max-width:480px) {
-  .og-grid { grid-template-columns:repeat(2,1fr); gap:8px; }
+  .og-grid { grid-template-columns:repeat(2,1fr); gap:7px; }
+  .og-art { height:100px; }
+  .lb-top3 { grid-template-columns:1fr; }
   .shop-grid { grid-template-columns:1fr; }
   .inv-grid { grid-template-columns:1fr; }
-  .prf-g { grid-template-columns:1fr 1fr; }
-  .prf-g .prf-stat:last-child { grid-column:1/-1; }
   .gw-stats-row { grid-template-columns:1fr 1fr; }
   .gw-stats-row .gw-stat-card:last-child { grid-column:1/-1; }
-  .home-banner { padding:16px; }
-  .page.on { padding:12px; }
+  .home-banner { padding:14px; }
+  .page.on { padding:10px; }
+  .hb-title { font-size:1.2rem; }
+  .season-prizes { grid-template-columns:1fr; }
+  .ann-grid { gap:8px; }
+  .prf-g { grid-template-columns:1fr 1fr; }
+  .prf-g .prf-stat:last-child { grid-column:1/-1; }
+}
+
+/* Landscape phones — key fix: allow scrolling, reduce header sizes */
+@media (max-width:768px) and (orientation:landscape) {
+  :root { --nav-h:48px; }
+  body { overflow-y:auto; }
+  html, body { height:auto; min-height:100%; }
+  .home-banner { flex-direction:row; gap:14px; }
+  .hb-right { width:40%; flex-shrink:0; }
+  .hb-visual { height:90px; }
+  .og-grid { grid-template-columns:repeat(3,1fr); }
+  #mobileNav { height:52px; }
+  .content { padding-bottom:52px; }
+  .prf-sheet { max-height:96vh; }
 }
 
 /* Fix auth canvas — ensure grid fills viewport */
@@ -1854,6 +1881,17 @@ img { display:block }
 .inv-trophy-info{}
 .inv-trophy-name{font-family:var(--fh);font-size:13px;font-weight:800;color:var(--gold)}
 .inv-trophy-sub{font-size:11px;color:var(--lo);margin-top:3px}
+
+/* Touch-friendly tap targets on mobile */
+@media (max-width:768px) {
+  button, .chip, .mod, .mn-btn, .og-card, .ann-c { 
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mn-btn { min-height:44px; }
+  .btn-fill, .btn-outline { min-height:44px; padding:12px 20px; }
+  /* Prevent text size bump on orientation change */
+  * { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+}
 </style>
 </head>
 <body>
