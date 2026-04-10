@@ -1694,123 +1694,118 @@ img { display:block }
 .rp-exp-btn:hover { background:rgba(255,255,255,.06); color:var(--hi) }
 
 
-/* ════════════════════════════════════════════
-   MOBILE RESPONSIVE
-════════════════════════════════════════════ */
+/* Fix auth canvas */
+.auth-shell { height:100vh; min-height:100vh; overflow:hidden }
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════ */
+
+/* Tablet (≤900px) — controls go below chart */
+@media (max-width:900px) {
+  :root { --rp-w:0px; }
+  .rp { display:none !important; }
+  .cr-wrap { flex-direction:column; }
+  .cr-mult { font-size:3.5rem; }
+  .cr-ctrl { width:100%; border-left:none; border-top:1px solid var(--line); padding:14px 14px 80px; }
+}
+
+/* Mobile portrait (≤768px) */
 @media (max-width:768px) {
-  /* Variables */
-  :root { --sb-w:0px; --rp-w:0px; }
+  :root { --sb-w:0px; --rp-w:0px; --nav-h:52px; }
 
-  /* Hide sidebar and right panel on mobile */
-  .sidenav { display:none }
-  .rp { display:none }
-
-  /* Nav takes full width, add bottom nav */
-  #nav { padding:0 12px; }
-  .nav-wordmark { font-size:.85rem; }
-
-  /* Shell is just content */
+  /* Layout */
+  .sidenav { display:none !important; }
+  .rp { display:none !important; }
   .shell-body { flex-direction:column; }
-  .content { width:100%; }
+  .content { width:100%; min-width:0; }
 
-  /* Pages get less padding */
-  .page.on { padding:16px; }
+  /* Nav */
+  #nav { padding:0 14px; height:var(--nav-h); }
+  .nav-wordmark { font-size:.82rem; }
+  .nav-bonus-pill { display:none; }
 
-  /* Home banner stacks vertically */
-  .home-banner { flex-direction:column; gap:16px; padding:20px; }
-  .hb-right { padding-left:0; }
-  .hb-visual { width:100%; height:100px; }
-  .hb-left { max-width:100%; }
-
-  /* Announcements: 1 col */
-  .ann-grid { grid-template-columns:1fr; }
-
-  /* Originals: 2 col on mobile */
-  .og-grid { grid-template-columns:repeat(2,1fr); gap:10px; }
-  .og-live-cols, .og-live-row {
-    grid-template-columns: 1fr 80px 70px 70px;
-  }
-  .og-live-col-lbl:nth-child(4),
-  .og-live-row > .og-live-mult { display:none; }
-
-  /* Leaderboard: stack hero cards */
-  .lb-top3 { grid-template-columns:1fr; }
-  .lb-table-header, .lb-entry { grid-template-columns:44px 1fr 100px; }
-
-  /* Giveaway: single column */
-  .gw-layout { grid-template-columns:1fr; }
-  .gw-stats-row { grid-template-columns:repeat(3,1fr); }
-
-  /* Codes: single column */
-  .codes-layout { grid-template-columns:1fr; }
-
-  /* Shop: 2 cols */
-  .shop-grid { grid-template-columns:repeat(2,1fr); }
-
-  /* Inventory: 2 cols */
-  .inv-grid { grid-template-columns:repeat(2,1fr); }
-
-  /* Admin: stack */
-  .adm-page-grid { grid-template-columns:1fr; }
-  .adm-sidebar-card { position:static; }
-  .adm-stats-grid { grid-template-columns:repeat(2,1fr); }
-
-  /* Profile modal full screen */
-  .prf-sheet { max-width:100%; border-radius:var(--ry) var(--ry) 0 0; max-height:95vh; }
-  #prfModal { align-items:flex-end; padding:0; }
-
-  /* Wins cols: hide time */
-  .wins-cols, .win-row {
-    grid-template-columns: 1fr 100px 80px;
-  }
-  .wins-col-lbl:last-child, .win-row > .win-time { display:none; }
-
-  /* Leaderboard table: hide status */
-  .lb-table-header, .lb-entry { grid-template-columns:44px 1fr 100px; }
-
-  /* Mobile bottom navigation */
+  /* Mobile bottom nav */
   #mobileNav {
-    display:flex; position:fixed; bottom:0; left:0; right:0; z-index:500;
+    display:flex !important; position:fixed; bottom:0; left:0; right:0; z-index:600;
     background:var(--s2); border-top:1px solid var(--line);
-    height:56px; align-items:stretch;
+    height:58px; align-items:stretch;
+    padding-bottom:env(safe-area-inset-bottom);
   }
   .mn-btn {
     flex:1; display:flex; flex-direction:column; align-items:center;
     justify-content:center; gap:3px; cursor:pointer;
     color:var(--lo); background:none; border:none;
-    font-size:18px; transition:color .12s; font-family:var(--fn);
+    font-size:20px; transition:color .12s; font-family:var(--fn);
+    -webkit-tap-highlight-color:transparent; min-width:0; padding:0 2px;
   }
-  .mn-btn span { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+  .mn-btn span { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .mn-btn.on { color:var(--blue); }
-  .mn-btn:hover { color:var(--mid); }
 
-  /* Add bottom padding so content isn't hidden by bottom nav */
-  .content { padding-bottom:56px; }
-  body { padding-bottom:0; }
-
-  /* Auth on mobile */
-  .auth-shell { grid-template-columns:1fr; }
-  .auth-left { display:none; }
-  .auth-right { padding:28px 20px; }
-}
-
-@media (max-width:480px) {
-  .og-grid { grid-template-columns:1fr; }
-  .shop-grid { grid-template-columns:1fr; }
-  .inv-grid { grid-template-columns:1fr; }
+  /* Profile modal */
+  #prfModal { align-items:flex-end; padding:0; }
+  .prf-sheet { max-width:100%; border-radius:var(--ry) var(--ry) 0 0; max-height:92vh; }
   .prf-g { grid-template-columns:1fr 1fr; }
   .prf-g .prf-stat:last-child { grid-column:1/-1; }
-  .gw-stats-row { grid-template-columns:1fr 1fr; }
-  .gw-stats-row .gw-stat-card:last-child { grid-column:1/-1; }
-  .home-banner { padding:16px; }
-  .page.on { padding:12px; }
+
+  /* Auth */
+  .auth-shell { grid-template-columns:1fr; height:auto; min-height:100vh; overflow-y:auto; }
+  .auth-left { display:none; }
+  .auth-right { padding:24px 20px 40px; }
+
+  /* ── Crash layout ── */
+  .cr-wrap { flex-direction:column; }
+  .cr-board { min-height:240px; }
+  .cr-mult { font-size:3rem; letter-spacing:-1px; }
+  .cr-mult.idle { font-size:1.8rem; }
+
+  /* History bar — compact */
+  .cr-topbar { padding:5px 10px; }
+  .cr-hpill { font-size:10px; padding:2px 7px; }
+
+  /* Controls below chart */
+  .cr-ctrl {
+    width:100%; border-left:none; border-top:1px solid var(--line);
+    padding:12px 12px 72px; gap:10px;
+  }
+
+  /* Bet field */
+  .cr-betfield { margin-bottom:7px; }
+  .cr-betpfx { height:38px; font-size:14px; }
+  .cr-betinp { height:38px; font-size:13px; }
+
+  /* Chips */
+  .cr-chips { gap:4px; margin-bottom:6px; }
+  .cr-chip { font-size:11px; padding:6px 3px; }
+
+  /* Action buttons — min 44px touch target */
+  .cr-btn { min-height:44px; padding:11px; }
+  .cr-btn.xbet { min-height:38px; }
 }
 
-/* Fix auth canvas — ensure grid fills viewport */
-.auth-shell { height:100vh; min-height:100vh; overflow:hidden }
+/* Small phones (≤480px) */
+@media (max-width:480px) {
+  .cr-board { min-height:200px; }
+  .cr-mult { font-size:2.6rem; }
+  .cr-chip { font-size:10px; }
+  .cr-chips { grid-template-columns:repeat(3,1fr); }
+}
 
+/* Landscape phones */
+@media (max-width:768px) and (orientation:landscape) {
+  :root { --nav-h:48px; }
+  .cr-wrap { flex-direction:row; }
+  .cr-board { min-height:0; flex:1; }
+  .cr-ctrl { width:220px; border-left:1px solid var(--line); border-top:none; padding:10px 10px 54px; overflow-y:auto; }
+  .cr-mult { font-size:2.8rem; }
+  #mobileNav { height:50px; }
+}
 
-/* Shell and nav display handled by JS correctly */
+/* Touch improvements */
+@media (max-width:768px) {
+  .cr-btn, .cr-chip, .cr-mod, .cr-mtog, .mn-btn { -webkit-tap-highlight-color:transparent; }
+  * { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+}
 
 
 /* CRASH page override — must be flex not block */
@@ -1902,11 +1897,7 @@ img { display:block }
 .cr-btn.xbet:hover:not(:disabled) { background:rgba(240,82,82,.07); }
 .cr-lk .cr-chip, .cr-lk .cr-mod, .cr-lk .cr-mtog, .cr-lk .cr-betfield, .cr-lk .cr-autoinp { pointer-events:none; opacity:.3; }
 #crSync { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(61,214,140,.08); border:1px solid rgba(61,214,140,.2); border-radius:var(--rx); padding:7px 16px; font-size:11px; color:var(--up); display:none; z-index:200; white-space:nowrap; }
-@media(max-width:900px) {
-  .cr-wrap { flex-direction:column; }
-  .cr-mult { font-size:3.5rem; }
-  .cr-ctrl { width:100%; border-left:none; border-top:1px solid var(--line); padding:14px 14px 80px; }
-}
+
 
 </style>
 </head>
